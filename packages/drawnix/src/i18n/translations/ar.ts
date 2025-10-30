@@ -92,6 +92,12 @@ const arTranslations: Translations = {
     "dialog.mermaid.placeholder": "اكتب تعريف المخطط هنا...",
     "dialog.mermaid.preview": "معاينة",
     "dialog.mermaid.insert": "إدراج",
+    "dialog.pddl.title": "من PDDL إلى Drawnix",
+    "dialog.pddl.description": "حوّل تعريفات لغة توصيف مجال التخطيط (PDDL) إلى خرائط ذهنية في Drawnix.",
+    "dialog.pddl.syntax": "تعريف PDDL",
+    "dialog.pddl.placeholder": "الصق تعريف مجال أو مسألة PDDL هنا…",
+    "dialog.pddl.preview": "معاينة",
+    "dialog.pddl.insert": "إدراج",
     "dialog.markdown.description": "يدعم التحويل التلقائي من Markdown إلى خريطة ذهنية.",
     "dialog.markdown.syntax": "صيغة Markdown",
     "dialog.markdown.placeholder": "اكتب نص Markdown هنا...",
@@ -102,6 +108,7 @@ const arTranslations: Translations = {
     // Extra tools menu items
     "extraTools.mermaidToDrawnix": "من Mermaid إلى Drawnix",
     "extraTools.markdownToDrawnix": "من Markdown إلى Drawnix",
+    "extraTools.pddlToDrawnix": "من PDDL إلى Drawnix",
 
     // Clean confirm dialog
     "cleanConfirm.title": "مسح اللوحة",
@@ -154,6 +161,30 @@ const arTranslations: Translations = {
   ### Hello world 👋 🌍 ✨ 💻
 
   #### Wow, a programmer 🤯 ⌨️ 💡 👩 💻`,
+    'pddl.example': `(define (domain sample-domain)
+  (:requirements :strips :typing)
+  (:types robot location)
+  (:predicates
+    (at ?r - robot ?l - location)
+    (connected ?from - location ?to - location))
+  (:action move
+    :parameters (?r - robot ?from - location ?to - location)
+    :precondition (and (at ?r ?from) (connected ?from ?to))
+    :effect (and
+      (not (at ?r ?from))
+      (at ?r ?to))))
+
+(define (problem move-robot)
+  (:domain sample-domain)
+  (:objects
+    bot - robot
+    room-a room-b room-c - location)
+  (:init
+    (at bot room-a)
+    (connected room-a room-b)
+    (connected room-b room-c))
+  (:goal
+    (and (at bot room-c))))`,
 
     // Draw elements text
     "draw.lineText": "نص",

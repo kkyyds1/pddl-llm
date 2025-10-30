@@ -518,6 +518,17 @@ export const MarkdownLogoIcon = createIcon(
   </svg>
 );
 
+export const PddlLogoIcon = createIcon(
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M14 3v5a1 1 0 0 0 1 1h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </g>
+  </svg>
+);
+
 export const LinkIcon = createIcon(
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
     <g stroke="none" fill="currentColor">

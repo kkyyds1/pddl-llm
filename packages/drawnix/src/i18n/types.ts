@@ -96,6 +96,12 @@ export interface Translations {
   'dialog.mermaid.placeholder': string;
   'dialog.mermaid.preview': string;
   'dialog.mermaid.insert': string;
+  'dialog.pddl.title': string;
+  'dialog.pddl.description': string;
+  'dialog.pddl.syntax': string;
+  'dialog.pddl.placeholder': string;
+  'dialog.pddl.preview': string;
+  'dialog.pddl.insert': string;
   'dialog.markdown.description': string;
   'dialog.markdown.syntax': string;
   'dialog.markdown.placeholder': string;
@@ -106,6 +112,7 @@ export interface Translations {
   // Extra tools menu items
   'extraTools.mermaidToDrawnix': string;
   'extraTools.markdownToDrawnix': string;
+  'extraTools.pddlToDrawnix': string;
 
   // Clean confirm dialog
   'cleanConfirm.title': string;
@@ -139,6 +146,7 @@ export interface Translations {
 
   //markdown example
   'markdown.example': string;
+  'pddl.example': string;
 
   // Draw elements text
   'draw.lineText': string;

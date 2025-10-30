@@ -94,6 +94,14 @@ const ruTranslations: Translations = {
     'Введите сюда описание вашей Mermaid-диаграммы…',
   'dialog.mermaid.preview': 'Предпросмотр',
   'dialog.mermaid.insert': 'Вставить',
+  'dialog.pddl.title': 'PDDL в Drawnix',
+  'dialog.pddl.description':
+    'Конвертируйте определения Planning Domain Definition Language (PDDL) в интеллект-карты Drawnix.',
+  'dialog.pddl.syntax': 'Определение PDDL',
+  'dialog.pddl.placeholder':
+    'Вставьте сюда описание домена или задачи PDDL…',
+  'dialog.pddl.preview': 'Предпросмотр',
+  'dialog.pddl.insert': 'Вставить',
   'dialog.markdown.description':
     'Поддерживается автоматическое преобразование синтаксиса Markdown в mind-карты.',
   'dialog.markdown.syntax': 'Синтаксис Markdown',
@@ -106,6 +114,7 @@ const ruTranslations: Translations = {
   // Extra tools menu items
   'extraTools.mermaidToDrawnix': 'Mermaid в Drawnix',
   'extraTools.markdownToDrawnix': 'Markdown в Drawnix',
+  'extraTools.pddlToDrawnix': 'PDDL в Drawnix',
 
   // Clean confirm dialog
   'cleanConfirm.title': 'Очистить доску',
@@ -158,6 +167,30 @@ const ruTranslations: Translations = {
   ### Hello world 👋 🌍 ✨ 💻
 
   #### Wow, a programmer 🤯 ⌨️ 💡 👩 💻`,
+  'pddl.example': `(define (domain sample-domain)
+  (:requirements :strips :typing)
+  (:types robot location)
+  (:predicates
+    (at ?r - robot ?l - location)
+    (connected ?from - location ?to - location))
+  (:action move
+    :parameters (?r - robot ?from - location ?to - location)
+    :precondition (and (at ?r ?from) (connected ?from ?to))
+    :effect (and
+      (not (at ?r ?from))
+      (at ?r ?to))))
+
+(define (problem move-robot)
+  (:domain sample-domain)
+  (:objects
+    bot - robot
+    room-a room-b room-c - location)
+  (:init
+    (at bot room-a)
+    (connected room-a room-b)
+    (connected room-b room-c))
+  (:goal
+    (and (at bot room-c))))`,
 
   // Draw elements text
   'draw.lineText': 'Текст',

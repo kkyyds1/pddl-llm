@@ -92,6 +92,14 @@ const enTranslations: Translations = {
   'dialog.mermaid.placeholder': 'Write your Mermaid chart definition here…',
   'dialog.mermaid.preview': 'Preview',
   'dialog.mermaid.insert': 'Insert',
+  'dialog.pddl.title': 'PDDL to Drawnix',
+  'dialog.pddl.description':
+    'Convert Planning Domain Definition Language (PDDL) definitions into Drawnix mind maps.',
+  'dialog.pddl.syntax': 'PDDL Definition',
+  'dialog.pddl.placeholder':
+    'Paste your PDDL domain or problem definition here…',
+  'dialog.pddl.preview': 'Preview',
+  'dialog.pddl.insert': 'Insert',
   'dialog.markdown.description':
     'Supports automatic conversion of Markdown syntax to mind map.',
   'dialog.markdown.syntax': 'Markdown Syntax',
@@ -103,6 +111,7 @@ const enTranslations: Translations = {
   // Extra tools menu items
   'extraTools.mermaidToDrawnix': 'Mermaid to Drawnix',
   'extraTools.markdownToDrawnix': 'Markdown to Drawnix',
+  'extraTools.pddlToDrawnix': 'PDDL to Drawnix',
 
   // Clean confirm dialog
   'cleanConfirm.title': 'Clear Board',
@@ -155,6 +164,30 @@ const enTranslations: Translations = {
   ### Hello world 👋 🌍 ✨ 💻
 
   #### Wow, a programmer 🤯 ⌨️ 💡 👩 💻`,
+  'pddl.example': `(define (domain sample-domain)
+  (:requirements :strips :typing)
+  (:types robot location)
+  (:predicates
+    (at ?r - robot ?l - location)
+    (connected ?from - location ?to - location))
+  (:action move
+    :parameters (?r - robot ?from - location ?to - location)
+    :precondition (and (at ?r ?from) (connected ?from ?to))
+    :effect (and
+      (not (at ?r ?from))
+      (at ?r ?to))))
+
+(define (problem move-robot)
+  (:domain sample-domain)
+  (:objects
+    bot - robot
+    room-a room-b room-c - location)
+  (:init
+    (at bot room-a)
+    (connected room-a room-b)
+    (connected room-b room-c))
+  (:goal
+    (and (at bot room-c))))`,
 
   // Draw elements text
   'draw.lineText': 'Text',

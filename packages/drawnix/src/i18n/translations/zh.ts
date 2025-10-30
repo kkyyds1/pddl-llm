@@ -92,6 +92,12 @@ const zhTranslations: Translations = {
   'dialog.mermaid.placeholder': '在此处编写 Mermaid 图表定义…',
   'dialog.mermaid.preview': '预览',
   'dialog.mermaid.insert': '插入',
+  'dialog.pddl.title': 'PDDL 转 Drawnix',
+  'dialog.pddl.description': '将规划域定义语言（PDDL）定义转换为 Drawnix 思维导图。',
+  'dialog.pddl.syntax': 'PDDL 定义',
+  'dialog.pddl.placeholder': '在此粘贴 PDDL 域或问题的定义…',
+  'dialog.pddl.preview': '预览',
+  'dialog.pddl.insert': '插入',
   'dialog.markdown.description': '支持 Markdown 语法自动转换为思维导图。',
   'dialog.markdown.syntax': 'Markdown 语法',
   'dialog.markdown.placeholder': '在此处编写 Markdown 文本定义…',
@@ -102,6 +108,7 @@ const zhTranslations: Translations = {
   // Extra tools menu items
   'extraTools.mermaidToDrawnix': 'Mermaid 到 Drawnix',
   'extraTools.markdownToDrawnix': 'Markdown 到 Drawnix',
+  'extraTools.pddlToDrawnix': 'PDDL 到 Drawnix',
 
   // Clean confirm dialog
   'cleanConfirm.title': '清除画布',
@@ -159,8 +166,32 @@ const zhTranslations: Translations = {
   ## 男孩还是女孩 👶 ❓ 🤷 ♂️ ♀️
   
   ### Hello world 👋 🌍 ✨ 💻
-  
+
   #### 哇 是个程序员 🤯 ⌨️ 💡 👩 💻`,
+  'pddl.example': `(define (domain sample-domain)
+  (:requirements :strips :typing)
+  (:types robot location)
+  (:predicates
+    (at ?r - robot ?l - location)
+    (connected ?from - location ?to - location))
+  (:action move
+    :parameters (?r - robot ?from - location ?to - location)
+    :precondition (and (at ?r ?from) (connected ?from ?to))
+    :effect (and
+      (not (at ?r ?from))
+      (at ?r ?to))))
+
+(define (problem move-robot)
+  (:domain sample-domain)
+  (:objects
+    bot - robot
+    room-a room-b room-c - location)
+  (:init
+    (at bot room-a)
+    (connected room-a room-b)
+    (connected room-b room-c))
+  (:goal
+    (and (at bot room-c))))`,
 
   'tutorial.title': 'Drawnix',
   'tutorial.description': 'All-in-one 白板，包含思维导图、流程图、自由画笔等',
