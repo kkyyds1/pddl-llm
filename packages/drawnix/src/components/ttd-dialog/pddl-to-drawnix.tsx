@@ -24,7 +24,6 @@ const PddlToDrawnix = () => {
   const [value, setValue] = useState<PlaitElement[]>([]);
   const deferredText = useDeferredValue(text.trim());
   const [error, setError] = useState<Error | null>(null);
-  const [isParsing, setIsParsing] = useState(false);
   const board = useBoard();
 
   useEffect(() => {
@@ -32,46 +31,19 @@ const PddlToDrawnix = () => {
   }, [language]);
 
   useEffect(() => {
-    let cancelled = false;
-
     if (!deferredText) {
       setValue([]);
       setError(null);
-      setIsParsing(false);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
-
-    const convertPddl = async () => {
-      setIsParsing(true);
+    try {
+      const mind = parsePddlToMind(deferredText);
+      setValue([mind]);
       setError(null);
+    } catch (err) {
+      setError(err as Error);
       setValue([]);
-      try {
-        const mind = await parsePddlToMind(deferredText);
-        if (cancelled) {
-          return;
-        }
-        setValue([mind]);
-        setError(null);
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
-        setError(err as Error);
-        setValue([]);
-      } finally {
-        if (!cancelled) {
-          setIsParsing(false);
-        }
-      }
-    };
-
-    convertPddl();
-
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [deferredText]);
 
   const insertToBoard = () => {
@@ -123,7 +95,7 @@ const PddlToDrawnix = () => {
           }}
           renderSubmitShortcut={() => <TTDDialogSubmitShortcut />}
         >
-          <TTDDialogOutput value={value} loaded={!isParsing} error={error} />
+          <TTDDialogOutput value={value} loaded={true} error={error} />
         </TTDDialogPanel>
       </TTDDialogPanels>
     </>
@@ -131,3 +103,4 @@ const PddlToDrawnix = () => {
 };
 
 export default PddlToDrawnix;
+

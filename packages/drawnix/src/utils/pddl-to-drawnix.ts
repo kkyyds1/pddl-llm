@@ -1,13 +1,5 @@
 import { MindLayoutType } from '@plait/layouts';
 import { createMindElement, MindElement } from '@plait/mind';
-import type {
-  Action,
-  DomainInfo,
-  ProblemInfo,
-  TypeObjectMap,
-  TypeObjects,
-} from 'pddl-workspace';
-import { parser, DurativeAction, InstantAction } from 'pddl-workspace';
 
 type SExprAtom = string;
 type SExpr = Array<SExprAtom | SExpr>;
@@ -17,7 +9,6 @@ interface Definition {
   name?: string;
   segments: SExpr[];
   headerIndex: number | null;
-  expr: SExpr;
 }
 
 const DEFAULT_ROOT_LABEL = 'PDDL Diagram';
@@ -27,12 +18,23 @@ const isAtom = (value: SExprAtom | SExpr): value is SExprAtom =>
 
 const isList = (value: SExprAtom | SExpr): value is SExpr => Array.isArray(value);
 
+const toTitleCase = (text: string) =>
+  text
+    .replace(/^:/, '')
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(' ');
+
 const formatSExpr = (expr: SExprAtom | SExpr): string => {
   if (isAtom(expr)) {
     return expr;
   }
   return `(${expr.map((item) => formatSExpr(item)).join(' ')})`;
 };
+
+const formatInline = (items: (SExprAtom | SExpr)[]): string =>
+  items.map((item) => formatSExpr(item)).join(' ');
 
 const addChild = (parent: MindElement, text: string): MindElement => {
   const child = createMindElement(text, {});
@@ -137,8 +139,183 @@ const classifyDefinition = (expr: SExpr): Definition | null => {
     name,
     segments,
     headerIndex,
-    expr,
   };
+};
+
+const appendRequirementLikeSection = (
+  parent: MindElement,
+  title: string,
+  entries: (SExprAtom | SExpr)[]
+) => {
+  const sectionNode = addChild(parent, title);
+  if (!entries.length) {
+    addChild(sectionNode, '(empty)');
+    return;
+  }
+  entries.forEach((entry) => {
+    const rendered = formatSExpr(entry);
+    if (rendered) {
+      addChild(sectionNode, rendered);
+    }
+  });
+};
+
+const appendTypedBlockSection = (
+  parent: MindElement,
+  title: string,
+  entries: (SExprAtom | SExpr)[]
+) => {
+  const sectionNode = addChild(parent, title);
+  if (!entries.length) {
+    addChild(sectionNode, '(empty)');
+    return;
+  }
+
+  let buffer: string[] = [];
+  const flushBuffer = () => {
+    if (buffer.length) {
+      addChild(sectionNode, buffer.join(' '));
+      buffer = [];
+    }
+  };
+
+  entries.forEach((entry) => {
+    const rendered = formatSExpr(entry);
+    if (rendered === '-') {
+      buffer.push(rendered);
+    } else if (rendered.startsWith('-') && buffer.length && buffer[buffer.length - 1] === '-') {
+      buffer[buffer.length - 1] = '-';
+      buffer.push(rendered.slice(1));
+      flushBuffer();
+    } else if (rendered.startsWith('-')) {
+      flushBuffer();
+      buffer.push(rendered.slice(1));
+      flushBuffer();
+    } else {
+      buffer.push(rendered);
+    }
+  });
+
+  flushBuffer();
+};
+
+const appendPredicateSection = (
+  parent: MindElement,
+  title: string,
+  entries: (SExprAtom | SExpr)[]
+) => {
+  const sectionNode = addChild(parent, title);
+  if (!entries.length) {
+    addChild(sectionNode, '(empty)');
+    return;
+  }
+  entries.forEach((entry) => {
+    const rendered = formatSExpr(entry);
+    if (rendered) {
+      addChild(sectionNode, rendered);
+    }
+  });
+};
+
+const appendActionSection = (parent: MindElement, actionExpr: SExpr) => {
+  if (!actionExpr.length) {
+    return;
+  }
+
+  const actionHead = actionExpr[0];
+  if (!isAtom(actionHead)) {
+    return;
+  }
+
+  const actionName = isAtom(actionExpr[1]) ? actionExpr[1] : 'Unnamed Action';
+  const actionNode = addChild(
+    parent,
+    `${toTitleCase(actionHead === ':durative-action' ? ':durative action' : actionHead)}: ${actionName}`
+  );
+
+  for (let index = 2; index < actionExpr.length; index++) {
+    const key = actionExpr[index];
+    if (!isAtom(key)) {
+      addChild(actionNode, formatSExpr(key));
+      continue;
+    }
+    if (!key.startsWith(':')) {
+      addChild(actionNode, `${key}`);
+      continue;
+    }
+    const label = toTitleCase(key);
+    const value = actionExpr[index + 1];
+    if (typeof value === 'undefined') {
+      addChild(actionNode, `${label}: (empty)`);
+      continue;
+    }
+    addChild(actionNode, `${label}: ${formatSExpr(value)}`);
+    index += 1;
+  }
+};
+
+const appendGenericSection = (parent: MindElement, expr: SExpr) => {
+  if (!expr.length) {
+    return;
+  }
+  const [head, ...rest] = expr;
+  const title = isAtom(head) ? toTitleCase(head) : 'Section';
+  const sectionNode = addChild(parent, title);
+  if (!rest.length) {
+    addChild(sectionNode, '(empty)');
+    return;
+  }
+  rest.forEach((entry) => {
+    addChild(sectionNode, formatSExpr(entry));
+  });
+};
+
+const appendDomainDefinition = (node: MindElement, definition: Definition) => {
+  definition.segments.forEach((segment, index) => {
+    if (index === definition.headerIndex || !isList(segment) || !segment.length) {
+      return;
+    }
+    const head = segment[0];
+    if (!isAtom(head)) {
+      appendGenericSection(node, segment);
+      return;
+    }
+    const key = head.toLowerCase();
+    if (key === ':requirements') {
+      appendRequirementLikeSection(node, 'Requirements', segment.slice(1));
+    } else if (key === ':types' || key === ':constants') {
+      appendTypedBlockSection(node, toTitleCase(head), segment.slice(1));
+    } else if (key === ':predicates' || key === ':functions') {
+      appendPredicateSection(node, toTitleCase(head), segment.slice(1));
+    } else if (key === ':action' || key === ':durative-action') {
+      appendActionSection(node, segment);
+    } else {
+      appendGenericSection(node, segment);
+    }
+  });
+};
+
+const appendProblemDefinition = (node: MindElement, definition: Definition) => {
+  definition.segments.forEach((segment, index) => {
+    if (index === definition.headerIndex || !isList(segment) || !segment.length) {
+      return;
+    }
+    const head = segment[0];
+    if (!isAtom(head)) {
+      appendGenericSection(node, segment);
+      return;
+    }
+    const key = head.toLowerCase();
+    if (key === ':domain') {
+      appendRequirementLikeSection(node, 'Domain', segment.slice(1));
+    } else if (key === ':objects' || key === ':init' || key === ':goal') {
+      appendPredicateSection(node, toTitleCase(head), segment.slice(1));
+    } else if (key === ':metric' || key === ':constraints') {
+      appendGenericSection(node, segment);
+    } else {
+      appendGenericSection(node, segment);
+    }
+  });
 };
 
 const createRootMind = (label: string): MindElement => {
@@ -149,127 +326,7 @@ const createRootMind = (label: string): MindElement => {
   return mind;
 };
 
-const getTypeObjectEntries = (map: TypeObjectMap | undefined) => {
-  if (!map) {
-    return [];
-  }
-  const entries: { type: string; objects: string[] }[] = [];
-  const anyMap = map as unknown as {
-    typeNameToTypeObjectMap?: Map<string, TypeObjects>;
-  };
-  if (anyMap?.typeNameToTypeObjectMap instanceof Map) {
-    anyMap.typeNameToTypeObjectMap.forEach((typeObjects) => {
-      entries.push({
-        type: typeObjects.type,
-        objects: typeObjects.getObjects(),
-      });
-    });
-  }
-  return entries;
-};
-
-const formatActionParameters = (action: Action) =>
-  action.parameters.map((param) => param.toPddlString()).join(', ');
-
-const appendActionDetails = (actionNode: MindElement, action: Action) => {
-  if (action.parameters.length) {
-    addChild(
-      actionNode,
-      `Parameters: ${formatActionParameters(action)}`
-    );
-  } else {
-    addChild(actionNode, 'Parameters: (none)');
-  }
-
-  if (action instanceof DurativeAction) {
-    if (action.duration) {
-      addChild(actionNode, `Duration: ${action.duration.getNonCommentText().trim()}`);
-    }
-    if (action.condition) {
-      addChild(actionNode, `Condition: ${action.condition.getNonCommentText().trim()}`);
-    }
-    if (action.effect) {
-      addChild(actionNode, `Effect: ${action.effect.getNonCommentText().trim()}`);
-    }
-    return;
-  }
-
-  if (action instanceof InstantAction) {
-    if (action.preCondition) {
-      addChild(
-        actionNode,
-        `Precondition: ${action.preCondition.getNonCommentText().trim()}`
-      );
-    }
-    if (action.effect) {
-      addChild(
-        actionNode,
-        `Effect: ${action.effect.getNonCommentText().trim()}`
-      );
-    }
-  }
-};
-
-const appendDomainInfo = (root: MindElement, domain: DomainInfo, isPrimary: boolean) => {
-  const label = `Domain: ${domain.name || 'Unnamed Domain'}`;
-  const domainNode = isPrimary ? root : addChild(root, label);
-
-  const predicates = domain.getPredicates();
-  const predicateSection = addChild(domainNode, 'Predicates');
-  if (!predicates.length) {
-    addChild(predicateSection, '(none)');
-  } else {
-    predicates.forEach((predicate) => {
-      addChild(predicateSection, predicate.getFullName());
-    });
-  }
-
-  const actions = domain.getActions();
-  const actionSection = addChild(domainNode, 'Actions');
-  if (!actions.length) {
-    addChild(actionSection, '(none)');
-  } else {
-    actions.forEach((action) => {
-      const actionNode = addChild(
-        actionSection,
-        action.name ? action.name : 'Unnamed Action'
-      );
-      appendActionDetails(actionNode, action);
-    });
-  }
-};
-
-const appendProblemInfo = (
-  root: MindElement,
-  problem: ProblemInfo,
-  isPrimary: boolean
-) => {
-  const label = `Problem: ${problem.name || 'Unnamed Problem'}`;
-  const problemNode = isPrimary ? root : addChild(root, label);
-
-  addChild(problemNode, `Domain Reference: ${problem.domainName || '(unknown)'}`);
-
-  const objectsSection = addChild(problemNode, 'Objects');
-  const entries = getTypeObjectEntries(problem.getObjectsTypeMap());
-
-  if (!entries.length) {
-    addChild(objectsSection, '(none)');
-    return;
-  }
-
-  entries.forEach(({ type, objects }) => {
-    const typeNode = addChild(objectsSection, `${type}`);
-    if (!objects.length) {
-      addChild(typeNode, '(none)');
-      return;
-    }
-    objects.forEach((objectName) => {
-      addChild(typeNode, objectName);
-    });
-  });
-};
-
-export const parsePddlToMind = async (definition: string): Promise<MindElement> => {
+export const parsePddlToMind = (definition: string): MindElement => {
   const cleanedDefinition = stripComments(definition).trim();
   if (!cleanedDefinition) {
     throw new Error('PDDL content is empty.');
@@ -289,58 +346,32 @@ export const parsePddlToMind = async (definition: string): Promise<MindElement> 
     throw new Error('No PDDL definitions were detected.');
   }
 
-  const domainInfos: DomainInfo[] = [];
-  const problemInfos: ProblemInfo[] = [];
-
-  for (const definitionEntry of definitions) {
-    const definitionText = formatSExpr(definitionEntry.expr);
-    try {
-      if (definitionEntry.kind === 'domain') {
-        const domainInfo = parser.PddlDomainParser.parseText(definitionText);
-        if (domainInfo) {
-          domainInfos.push(domainInfo);
-        }
-      } else if (definitionEntry.kind === 'problem') {
-        const problemInfo = await parser.PddlProblemParser.parseText(definitionText);
-        if (problemInfo) {
-          problemInfos.push(problemInfo);
-        }
-      }
-    } catch (err) {
-      throw new Error(
-        `Failed to parse the ${definitionEntry.kind} definition: ${(err as Error).message}`
-      );
-    }
-  }
-
-  const primaryDomain = domainInfos[0];
-  const primaryProblem = problemInfos[0];
+  const domainDefinition = definitions.find((definition) => definition.kind === 'domain');
+  const problemDefinition = definitions.find((definition) => definition.kind === 'problem');
 
   const rootLabel =
-    (primaryDomain && primaryDomain.name && `Domain: ${primaryDomain.name}`) ||
-    (primaryProblem && primaryProblem.name && `Problem: ${primaryProblem.name}`) ||
+    (domainDefinition && domainDefinition.name && `Domain: ${domainDefinition.name}`) ||
+    (problemDefinition && problemDefinition.name && `Problem: ${problemDefinition.name}`) ||
     DEFAULT_ROOT_LABEL;
 
   const root = createRootMind(rootLabel);
 
-  if (primaryDomain) {
-    appendDomainInfo(root, primaryDomain, true);
-  }
-
-  domainInfos.slice(1).forEach((domainInfo) => {
-    appendDomainInfo(root, domainInfo, false);
+  definitions.forEach((definition, index) => {
+    if (definition.kind === 'domain') {
+      const isPrimary = definition === domainDefinition;
+      const targetNode = isPrimary ? root : addChild(root, `Domain: ${definition.name ?? 'Unnamed Domain'}`);
+      appendDomainDefinition(targetNode, definition);
+    } else if (definition.kind === 'problem') {
+      const isPrimary = definition === problemDefinition && !domainDefinition;
+      const targetNode = isPrimary
+        ? root
+        : addChild(root, `Problem: ${definition.name ?? 'Unnamed Problem'}`);
+      appendProblemDefinition(targetNode, definition);
+    } else {
+      appendGenericSection(root, [definition.name ?? 'Definition', ...definition.segments]);
+    }
   });
-
-  if (primaryProblem) {
-    const useRootForProblem = !primaryDomain;
-    appendProblemInfo(root, primaryProblem, useRootForProblem);
-  }
-
-  problemInfos
-    .slice(primaryProblem ? 1 : 0)
-    .forEach((problemInfo) => {
-      appendProblemInfo(root, problemInfo, false);
-    });
 
   return root;
 };
+
