@@ -1,0 +1,584 @@
+.wrapper {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.canvasContainer {
+  width: 100%;
+  height: 100%;
+}
+
+.toggleButton {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 40;
+  border: none;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.toggleButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+}
+
+.sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 260px;
+  padding: 20px 16px;
+  backdrop-filter: blur(14px);
+  background: rgba(248, 250, 252, 0.95);
+  box-shadow: 12px 0 28px rgba(15, 23, 42, 0.12);
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+
+.sidebarOpen {
+  transform: translateX(0);
+}
+
+.sidebarHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sidebarTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sidebarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.newFileButton {
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.newFileButton:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.newFolderButton {
+  border: none;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.newFolderButton:hover {
+  background: rgba(15, 23, 42, 0.14);
+  transform: translateY(-1px);
+}
+
+.currentDirectory {
+  font-size: 12px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clearSelectionButton {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.clearSelectionButton:hover {
+  color: #1d4ed8;
+}
+
+.fileList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.childList {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryItem {
+  list-style: none;
+}
+
+.entryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.entryRow:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.entryMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.typeSelector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.typeIconButton {
+  border: none;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.typeIconButton:hover,
+.typeIconButton:focus-visible {
+  background: rgba(37, 99, 235, 0.16);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.typeIconButtonActive {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.typeMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: rgba(248, 250, 252, 0.95);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+  min-width: 120px;
+}
+
+.typeMenuItem {
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.typeMenuItem:hover {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.typeMenuItemActive {
+  background: rgba(37, 99, 235, 0.2);
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.renameMode {
+  align-items: flex-start;
+}
+
+.renameField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.renameInput {
+  width: 100%;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #0f172a;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.renameInput:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.renameInputError {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.16);
+}
+
+.renameError {
+  font-size: 11px;
+  color: #dc2626;
+}
+
+.entryNameButton {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #0f172a;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.entryNameButton:hover {
+  color: #1d4ed8;
+}
+
+.entryLabel {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.entryIcon {
+  font-size: 16px;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.entryName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+  justify-content: flex-end;
+}
+
+.entryActionToggle {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.entryActionToggle:hover,
+.entryActionToggle:focus-visible {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.12);
+  transform: scale(1.05);
+  outline: none;
+}
+
+.entryActionMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: rgba(248, 250, 252, 0.95);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.entryActions:hover .entryActionMenu,
+.entryActions:focus-within .entryActionMenu,
+.entryActionToggle:focus-visible + .entryActionMenu,
+.entryActionMenu:hover,
+.entryActionMenu:focus-within {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.entryActionItem {
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  text-align: left;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
+  pointer-events: auto;
+}
+
+.entryActionItem:hover {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.dangerAction {
+  color: #dc2626;
+}
+
+.dangerAction:hover {
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: min(420px, 88vw);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.modalBody {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.modalHighlight {
+  color: #0f172a;
+  font-weight: 600;
+  margin: 0 2px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modalButton {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.modalButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+}
+
+.ghostButton {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.ghostButton:hover {
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.dangerButton {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.dangerButton:hover {
+  background: #b91c1c;
+}
+
+.primaryButton {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.primaryButton:hover {
+  background: #1d4ed8;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalLabel {
+  font-size: 12px;
+  color: #475569;
+}
+
+.typeOptionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.typeOptionButton {
+  border: none;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.typeOptionButton:hover {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.typeOptionButtonActive {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.activeEntry {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.activeEntry .entryNameButton,
+.activeEntry .entryLabel {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.selectedFolder {
+  background: rgba(30, 64, 175, 0.14);
+}
+
+.selectedFolder .entryNameButton {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.emptyHint {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    height: 100dvh;
+  }
+
+  .sidebar {
+    width: min(80vw, 280px);
+  }
+
+  .sidebarActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toggleButton {
+    top: 12px;
+    left: 12px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
