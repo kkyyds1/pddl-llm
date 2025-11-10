@@ -7,6 +7,8 @@ import {
   RedoIcon,
   TrashIcon,
   UndoIcon,
+  UploadIcon,
+  solvedIcon,
 } from '../../icons';
 import classNames from 'classnames';
 import {
@@ -77,6 +79,19 @@ export const AppToolbar = () => {
             </Menu>
           </PopoverContent>
         </Popover>
+        <ToolButton
+                  key="solve"
+          type="icon"
+          icon={solvedIcon}
+          visible={true}
+          title="求解"
+          aria-label="求解"
+          onPointerUp={() => {
+            window.dispatchEvent(
+              new CustomEvent('drawnix:pddl-solve-request')
+            );
+          }}
+        />
         <ToolButton
           key={1}
           type="icon"

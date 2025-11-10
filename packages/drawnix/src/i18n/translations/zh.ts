@@ -124,6 +124,9 @@ const zhTranslations: Translations = {
   'popupToolbar.fontColor': '字体颜色',
   'popupToolbar.link': '链接',
   'popupToolbar.stroke': '边框',
+  'popupToolbar.backgroundImage': '背景图片',
+  'popupToolbar.uploadBackgroundImage': '上传背景图片',
+  'popupToolbar.removeBackgroundImage': '移除背景图片',
   
   // Text placeholders
   'textPlaceholders.link': '链接',
@@ -168,34 +171,34 @@ const zhTranslations: Translations = {
   ### Hello world 👋 🌍 ✨ 💻
 
   #### 哇 是个程序员 🤯 ⌨️ 💡 👩 💻`,
-  'pddl.example': `(define (domain sample-domain)
-  (:requirements :strips :typing)
-  (:types robot location)
-  (:predicates
-    (at ?r - robot ?l - location)
-    (connected ?from - location ?to - location))
-  (:action move
-    :parameters (?r - robot ?from - location ?to - location)
-    :precondition (and (at ?r ?from) (connected ?from ?to))
-    :effect (and
-      (not (at ?r ?from))
-      (at ?r ?to))))
+//   'pddl.example': `(define (domain sample-domain)
+//   (:requirements :strips :typing)
+//   (:types robot location)
+//   (:predicates
+//     (at ?r - robot ?l - location)
+//     (connected ?from - location ?to - location))
+//   (:action move
+//     :parameters (?r - robot ?from - location ?to - location)
+//     :precondition (and (at ?r ?from) (connected ?from ?to))
+//     :effect (and
+//       (not (at ?r ?from))
+//       (at ?r ?to))))
 
-(define (problem move-robot)
-  (:domain sample-domain)
-  (:objects
-    bot - robot
-    room-a room-b room-c - location)
-  (:init
-    (at bot room-a)
-    (connected room-a room-b)
-    (connected room-b room-c))
-  (:goal
-    (and (at bot room-c))))`,
+// (define (problem move-robot)
+//   (:domain sample-domain)
+//   (:objects
+//     bot - robot
+//     room-a room-b room-c - location)
+//   (:init
+//     (at bot room-a)
+//     (connected room-a room-b)
+//     (connected room-b room-c))
+//   (:goal
+//     (and (at bot room-c))))`,
 
-  'tutorial.title': 'Drawnix',
-  'tutorial.description': 'All-in-one 白板，包含思维导图、流程图、自由画笔等',
-  'tutorial.dataDescription': '所有数据被存在你的浏览器本地',
+  // 'tutorial.title': 'Drawnix',
+  // 'tutorial.description': 'All-in-one 白板，包含思维导图、流程图、自由画笔等',
+  'tutorial.dataDescription': 'PDDL 可视化工具',
   'tutorial.appToolbar': '导出，语言设置，...',
   'tutorial.creationToolbar': '选择一个工具开始你的创作',
   'tutorial.themeDescription': '在明亮和黑暗主题之间切换',

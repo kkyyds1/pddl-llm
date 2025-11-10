@@ -1,5 +1,6 @@
 import { PropertyTransforms } from '@plait/common';
 import {
+  getSelectedElements,
   isNullOrUndefined,
   Path,
   PlaitBoard,
@@ -21,6 +22,10 @@ import {
   isClosedElement,
 } from '../utils/property';
 import { TextTransforms } from '@plait/text-plugins';
+import {
+  getBackgroundFillBackupFromElement,
+  getBackgroundPatternId,
+} from '../utils/background-image';
 
 export const setFillColorOpacity = (board: PlaitBoard, fillOpacity: number) => {
   PropertyTransforms.setFillColor(board, null, {
@@ -140,4 +145,66 @@ export const setTextColorOpacity = (
     ? currentFontColorValue
     : applyOpacityToHex(currentFontColorValue, opacity);
   TextTransforms.setTextColor(board, newFontColor);
+};
+
+export const setBackgroundImage = (
+  board: PlaitBoard,
+  image: string
+) => {
+  const selectedElements = getSelectedElements(board);
+  selectedElements.forEach((element) => {
+    if (!isClosedElement(board, element)) {
+      return;
+    }
+    const path = PlaitBoard.findPath(board, element);
+    if (!path) {
+      return;
+    }
+
+    const existingData = element.data || {};
+    const nextData = {
+      ...existingData,
+      backgroundImage: image,
+      backgroundImageFillBackup:
+        existingData.backgroundImageFillBackup ??
+        element.fill ??
+        getBackgroundFillBackupFromElement(element),
+    };
+
+    const patternId = getBackgroundPatternId(element.id);
+    Transforms.setNode(
+      board,
+      {
+        data: nextData,
+        fill: `url(#${patternId})`,
+      },
+      path
+    );
+  });
+};
+
+export const clearBackgroundImage = (board: PlaitBoard) => {
+  const selectedElements = getSelectedElements(board);
+  selectedElements.forEach((element) => {
+    if (!element?.data?.backgroundImage) {
+      return;
+    }
+    const path = PlaitBoard.findPath(board, element);
+    if (!path) {
+      return;
+    }
+    const backupFill = getBackgroundFillBackupFromElement(element);
+    const nextData = { ...(element.data || {}) };
+    delete nextData.backgroundImage;
+    delete nextData.backgroundImageFillBackup;
+
+    Transforms.setNode(
+      board,
+      {
+        data: nextData,
+        fill: backupFill ?? null,
+      },
+      path
+    );
+  });
 };

@@ -131,6 +131,9 @@ const ruTranslations: Translations = {
   'popupToolbar.fontColor': 'Цвет текста',
   'popupToolbar.link': 'Вставить ссылку',
   'popupToolbar.stroke': 'Контур',
+  'popupToolbar.backgroundImage': 'Фоновое изображение',
+  'popupToolbar.uploadBackgroundImage': 'Загрузить фоновое изображение',
+  'popupToolbar.removeBackgroundImage': 'Удалить фоновое изображение',
   
   // Text placeholders
   'textPlaceholders.link': 'Ссылка',

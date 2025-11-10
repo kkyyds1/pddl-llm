@@ -128,6 +128,9 @@ export interface Translations {
   'popupToolbar.fontColor': string;
   'popupToolbar.link': string;
   'popupToolbar.stroke': string;
+  'popupToolbar.backgroundImage': string;
+  'popupToolbar.uploadBackgroundImage': string;
+  'popupToolbar.removeBackgroundImage': string;
 
   // Text placeholders
   'textPlaceholders.link': string;

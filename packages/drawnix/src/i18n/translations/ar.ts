@@ -124,6 +124,9 @@ const arTranslations: Translations = {
     "popupToolbar.fontColor": "لون الخط",
     "popupToolbar.link": "إدراج رابط",
     "popupToolbar.stroke": "الحد",
+    "popupToolbar.backgroundImage": "صورة الخلفية",
+    "popupToolbar.uploadBackgroundImage": "تحميل صورة الخلفية",
+    "popupToolbar.removeBackgroundImage": "إزالة صورة الخلفية",
 
     // Text placeholders
     "textPlaceholders.link": "رابط",

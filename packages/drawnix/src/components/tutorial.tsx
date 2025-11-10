@@ -10,9 +10,9 @@ export const Tutorial: React.FC = () => {
       <div className="tutorial-overlay">
         <div className="tutorial-content">
           
-          <h1 className="brand-title">{t('tutorial.title')}</h1>
-          <p className="brand-description">{t('tutorial.description')}</p>
-          <p className="brand-tooltip">{t('tutorial.dataDescription')}</p>
+          {/* <h1 className="brand-title">{t('tutorial.title')}</h1> */}
+          {/* <p className="brand-description">{t('tutorial.description')}</p> */}
+          <h2 className="brand-tooltip">{t('tutorial.dataDescription')}</h2>
           
           <div className="feature-pointer top-left">
             <svg className="pointer-arrow-svg" width="130" height="100" viewBox="0 0 130 100">

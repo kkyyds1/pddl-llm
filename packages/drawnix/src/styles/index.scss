@@ -160,3 +160,24 @@
     }
 }
 
+.drawnix g.drawnix-highlight-node {
+    filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.35));
+}
+
+.drawnix g.drawnix-highlight-node rect,
+.drawnix g.drawnix-highlight-node ellipse,
+.drawnix g.drawnix-highlight-node path {
+    stroke: #f97316 !important;
+    stroke-width: 4px !important;
+}
+
+.drawnix g.drawnix-highlight-edge path {
+    stroke: #f97316 !important;
+    stroke-width: 5px !important;
+}
+
+.drawnix g.drawnix-highlight-edge polygon,
+.drawnix g.drawnix-highlight-edge line {
+    stroke: #f97316 !important;
+    fill: #f97316 !important;
+}

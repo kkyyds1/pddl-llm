@@ -43,6 +43,7 @@ import { NO_COLOR } from '../../../constants/color';
 import { Freehand } from '../../../plugins/freehand/type';
 import { PopupLinkButton } from './link-button';
 import { ArrowMarkButton } from './arrow-mark-button';
+import { PopupBackgroundImageButton } from './background-image-button';
 
 export const PopupToolbar = () => {
   const board = useBoard();
@@ -61,9 +62,11 @@ export const PopupToolbar = () => {
   });
   let state: {
     fill: string | undefined;
+    backgroundImage?: string;
     strokeColor?: string;
     strokeStyle?: StrokeStyle;
     hasFill?: boolean;
+    hasBackgroundImage?: boolean;
     hasText?: boolean;
     fontColor?: string;
     hasFontColor?: boolean;
@@ -100,6 +103,7 @@ export const PopupToolbar = () => {
       hasStroke,
       hasStrokeStyle,
       hasText,
+      hasBackgroundImage: hasFill,
       isLine,
     };
   }
@@ -214,14 +218,35 @@ export const PopupToolbar = () => {
                 currentColor={state.fill}
                 title={t('popupToolbar.fillColor')}
               >
-                <label
-                  className={classNames('fill-label', 'color-label', {
-                    'color-white':
-                      state.fill && isWhite(removeHexAlpha(state.fill)),
-                  })}
-                  style={{ backgroundColor: state.fill }}
-                ></label>
+                {(() => {
+                  const fillColorSample = state.fill?.startsWith('url(')
+                    ? undefined
+                    : state.fill;
+                  const isWhiteFill =
+                    fillColorSample &&
+                    isWhite(removeHexAlpha(fillColorSample));
+                  return (
+                    <label
+                      className={classNames('fill-label', 'color-label', {
+                        'color-white': !!fillColorSample && isWhiteFill,
+                      })}
+                      style={
+                        fillColorSample
+                          ? { backgroundColor: fillColorSample }
+                          : undefined
+                      }
+                    ></label>
+                  );
+                })()}
               </PopupFillButton>
+            )}
+            {state.hasBackgroundImage && (
+              <PopupBackgroundImageButton
+                board={board}
+                key="background-image"
+                currentImage={state.backgroundImage}
+                title={t('popupToolbar.backgroundImage')}
+              />
             )}
             {state.hasText && (
               <PopupLinkButton
@@ -260,8 +285,9 @@ export const getMindElementState = (
   const marks = getTextMarksByElement(element);
   return {
     fill: element.fill,
+    backgroundImage: element.data?.backgroundImage,
     strokeColor: getStrokeColorByMindElement(board, element),
-    strokeStyle:getStrokeStyleByElement(board, element),
+    strokeStyle: getStrokeStyleByElement(board, element),
     marks,
   };
 };
@@ -273,6 +299,7 @@ export const getDrawElementState = (
   const marks: Omit<CustomText, 'text'> = getTextMarksByElement(element);
   return {
     fill: element.fill,
+    backgroundImage: element.data?.backgroundImage,
     strokeColor: getStrokeColorByDrawElement(board, element),
     strokeStyle: getStrokeStyleByElement(board, element),
     marks,

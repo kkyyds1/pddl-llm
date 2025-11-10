@@ -10,6 +10,9 @@ import { withImagePlugin } from './with-image';
 import { DrawI18nKey } from '@plait/draw';
 import { MindI18nKey } from '@plait/mind';
 import { i18nInsidePlaitHook } from '../i18n';
+
+// 确保textManage可用
+import { TextManage } from '@plait/common/text';
 export const withCommonPlugin = (board: PlaitBoard) => {
   const newBoard = board as PlaitBoard & PlaitImageBoard & PlaitI18nBoard;
 

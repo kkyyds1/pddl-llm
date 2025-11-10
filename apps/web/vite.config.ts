@@ -9,12 +9,18 @@ export default defineConfig({
 
   server: {
     port: 7200,
-    host: 'localhost',
+    host: '127.0.0.1',
+    proxy: {
+      '/pddl': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+    },
   },
 
   preview: {
     port: 4300,
-    host: 'localhost',
+    host: '127.0.0.1',
   },
 
   plugins: [react(), nxViteTsPaths()],

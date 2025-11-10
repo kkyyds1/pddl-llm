@@ -43,3 +43,34 @@
 .source-arrow-island .property-button ,.source-arrow-button{
    transform: rotateY(180deg);
 }
+
+.background-image-popover {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 160px;
+
+    &__action {
+        font-size: 12px;
+        padding: 6px 10px;
+        border: none;
+        border-radius: var(--border-radius-sm);
+        background: var(--color-surface-high);
+        color: var(--color-gray-100);
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: var(--color-surface-primary-container);
+        }
+
+        &--danger {
+            color: var(--color-danger, #dc2626);
+
+            &:hover {
+                background: var(--color-danger-soft, rgba(220, 38, 38, 0.12));
+            }
+        }
+    }
+}

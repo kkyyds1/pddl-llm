@@ -128,6 +128,9 @@ const enTranslations: Translations = {
   'popupToolbar.fontColor': 'Font Color',
   'popupToolbar.link': 'Insert Link',
   'popupToolbar.stroke': 'Stroke',
+  'popupToolbar.backgroundImage': 'Background Image',
+  'popupToolbar.uploadBackgroundImage': 'Upload Background Image',
+  'popupToolbar.removeBackgroundImage': 'Remove Background Image',
 
   // Text placeholders
   'textPlaceholders.link': 'Link',
