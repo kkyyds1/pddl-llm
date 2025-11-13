@@ -279,14 +279,14 @@ export const isNameTaken = (
   return takenNames.has(name);
 };
 
-export const generateNewFileName = (entries: BoardEntry[]) => {
+export const generateNewFileName = (entries: BoardEntry[], baseName = '未命名') => {
   const taken = collectEntryNames(entries, 'file');
-  return generateSequentialName('未命名', taken, '');
+  return generateSequentialName(baseName, taken, '');
 };
 
-export const generateNewFolderName = (entries: BoardEntry[]) => {
+export const generateNewFolderName = (entries: BoardEntry[], baseName = '文件夹') => {
   const taken = collectEntryNames(entries, 'folder');
-  return generateSequentialName('文件夹', taken);
+  return generateSequentialName(baseName, taken);
 };
 
 const generateSequentialName = (

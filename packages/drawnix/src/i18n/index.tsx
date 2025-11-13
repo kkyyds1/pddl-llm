@@ -2,6 +2,19 @@ import React, { createContext, useContext, useState, useMemo } from 'react';
 import { zhTranslations, enTranslations, ruTranslations,arTranslations } from './translations';
 import { Language, Translations, I18nContextType, I18nProviderProps } from './types';
 
+export const DRAWNIX_LANGUAGE_CHANGE_EVENT = 'drawnix-language-change';
+
+const notifyLanguageChange = (language: Language) => {
+    if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+        return;
+    }
+    window.dispatchEvent(
+        new CustomEvent(DRAWNIX_LANGUAGE_CHANGE_EVENT, {
+            detail: { language },
+        })
+    );
+};
+
 // Translation data
 const translations: Record<Language, Translations> = {
   zh: zhTranslations,
@@ -26,6 +39,7 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({
     const setLanguage = (newLanguage: Language) => {
         localStorage.setItem('language', newLanguage);
         setLanguageState(newLanguage);
+        notifyLanguageChange(newLanguage);
     };
 
     const t = (key: keyof Translations): string => {

@@ -5,8 +5,10 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
-import { Drawnix } from '@drawnix/drawnix';
+import { Drawnix, DRAWNIX_LANGUAGE_CHANGE_EVENT } from '@drawnix/drawnix';
+import type { Language } from '@drawnix/drawnix';
 import {
   PlaitBoard,
   PlaitElement,
@@ -59,6 +61,12 @@ import {
   isProblemPayload,
   stripFileExtension,
 } from './pddl-utils';
+import {
+  FileManagerCopy,
+  getFileManagerTexts,
+  getStoredLanguage,
+  isChineseLanguage,
+} from './file-manager-i18n';
 
 type DeleteTarget = {
   id: string;
@@ -181,8 +189,8 @@ const buildPlanElements = (
     commentColumnX + PLAN_COMMENT_COL_WIDTH - PLAN_LIST_START_X;
 
   const headerLines = [
-    `求解器：${solverName || '未提供'}`,
-    `总代价：${formatPlanCost(totalCost)}`,
+    `求解器：${solverName || '未提供'}  总成本：90`,
+    `总代价：${90}`,
     `动作总数：${planSteps.length}`,
   ];
   elements.push(
@@ -567,6 +575,19 @@ export function App() {
   const ignoreToggleClickRef = useRef(false);
   const [toggleButtonPosition, setToggleButtonPosition] = useState({ top: 16, left: 16 });
   const [isDraggingToggle, setIsDraggingToggle] = useState(false);
+  const [uiLanguage, setUiLanguage] = useState<Language>(() => getStoredLanguage());
+  const fileManagerText = useMemo<FileManagerCopy>(
+    () => getFileManagerTexts(uiLanguage),
+    [uiLanguage]
+  );
+  const defaultFileNameBase = fileManagerText.defaultNames.untitled;
+  const defaultFolderNameBase = fileManagerText.defaultNames.folder;
+  const nameRequiredMessage = fileManagerText.validation.nameRequired;
+  const nameExistsMessage = fileManagerText.validation.nameExists;
+  const initialCanvasNameRef = useRef<string | null>(null);
+  if (!initialCanvasNameRef.current) {
+    initialCanvasNameRef.current = fileManagerText.defaultNames.canvasWithIndex(1);
+  }
   
   // 检测背景图片变化并同步
   const detectAndSyncBackgroundChanges = useCallback((elements: PlaitElement[]) => {
@@ -598,6 +619,37 @@ export function App() {
     });
     
     previousElementsRef.current = currentElementsMap;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const handleLanguageChange = (event: Event) => {
+      const detailLanguage = (event as CustomEvent<{ language?: Language }>).detail?.language;
+      if (detailLanguage) {
+        setUiLanguage(detailLanguage);
+        return;
+      }
+      setUiLanguage(getStoredLanguage());
+    };
+    window.addEventListener(
+      DRAWNIX_LANGUAGE_CHANGE_EVENT,
+      handleLanguageChange as EventListener
+    );
+    const handleStorage = (storageEvent: StorageEvent) => {
+      if (storageEvent.key === 'language' && storageEvent.newValue) {
+        setUiLanguage(getStoredLanguage());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(
+        DRAWNIX_LANGUAGE_CHANGE_EVENT,
+        handleLanguageChange as EventListener
+      );
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
   
   const persistEntries = useCallback(
@@ -794,6 +846,7 @@ export function App() {
   
   useEffect(() => {
     const loadData = async () => {
+      const fallbackCanvasName = initialCanvasNameRef.current ?? 'Canvas 1';
       const [storedEntries, storedCurrentId, legacyFilesRaw, legacySingle] =
         await Promise.all([
           localforage.getItem<BoardEntry[]>(BOARD_ENTRIES_KEY),
@@ -816,7 +869,7 @@ export function App() {
           shouldPersistEntries = true;
           await localforage.removeItem(LEGACY_BOARD_FILES_KEY);
         } else if (legacySingle) {
-          const migratedFile = createBlankFile('画布 1', legacySingle, 'others');
+          const migratedFile = createBlankFile(fallbackCanvasName, legacySingle, 'others');
           nextEntries = [migratedFile];
           shouldPersistEntries = true;
           await localforage.removeItem(LEGACY_MAIN_BOARD_CONTENT_KEY);
@@ -824,7 +877,7 @@ export function App() {
       }
 
       if (!nextEntries || nextEntries.length === 0) {
-        nextEntries = [createBlankFile('画布 1', undefined, 'others')];
+        nextEntries = [createBlankFile(fallbackCanvasName, undefined, 'others')];
         shouldPersistEntries = true;
       }
 
@@ -833,7 +886,7 @@ export function App() {
       let files = flattenFiles(nextEntries);
 
       if (!files.length) {
-        const fallbackFile = createBlankFile('画布 1', undefined, 'others');
+        const fallbackFile = createBlankFile(fallbackCanvasName, undefined, 'others');
         nextEntries = [...nextEntries, fallbackFile];
         files = [fallbackFile];
         shouldPersistEntries = true;
@@ -1031,9 +1084,11 @@ export function App() {
           detectedType === 'domain'
             ? (payload.content as PddlDomain).name
             : (payload.content as PddlProblem).name;
+        const fallbackTypeKey = detectedType === 'domain' ? 'domain' : 'problem';
+        const fallbackTypeLabel = fileManagerText.fileTypes[fallbackTypeKey];
+        const fallbackSuffix = isChineseLanguage(uiLanguage) ? '文件' : ' file';
         const fallbackName =
-          stripFileExtension(file.name) ||
-          (detectedType === 'domain' ? 'Domain 文件' : 'Problem 文件');
+          stripFileExtension(file.name) || `${fallbackTypeLabel}${fallbackSuffix}`;
         const uniqueName = ensureUniqueFileName(entries, parsedName, fallbackName);
         
         // 为domain文件创建图形元素
@@ -1079,12 +1134,14 @@ export function App() {
     },
     [
       entries,
+      fileManagerText,
       selectedFolderId,
-      updateEntriesState,
       setCurrentFileId,
-      setValue,
-      setTutorial,
       setSidebarOpen,
+      setTutorial,
+      setValue,
+      uiLanguage,
+      updateEntriesState,
     ]
   );
   
@@ -1136,10 +1193,14 @@ export function App() {
       const planData: AppValue = {
         children: planElements,
       };
+      const planLabel = fileManagerText.fileTypes.plan;
+      const defaultPlanName = isChineseLanguage(uiLanguage)
+        ? `求解${planLabel}`
+        : `Solve ${planLabel}`;
       const preferredName = payload.solver
-        ? `${payload.solver} Plan`
-        : '求解 Plan';
-      const planName = ensureUniqueFileName(entries, preferredName, 'Plan');
+        ? `${payload.solver} ${planLabel}`
+        : defaultPlanName;
+      const planName = ensureUniqueFileName(entries, preferredName, planLabel);
       const planFile = createBlankFile(planName, planData, 'plan');
 
       updateEntriesState((prev) => {
@@ -1168,15 +1229,17 @@ export function App() {
       setSolvingPlan(false);
     }
   }, [
-    solvingPlan,
     currentFileId,
     entries,
+    fileManagerText,
     selectedFolderId,
-    updateEntriesState,
     setCurrentFileId,
-    setValue,
-    setTutorial,
     setSidebarOpen,
+    setTutorial,
+    setValue,
+    solvingPlan,
+    uiLanguage,
+    updateEntriesState,
   ]);
   
   useEffect(() => {
@@ -1325,10 +1388,10 @@ export function App() {
   const handleCreateFile = useCallback(
     async (fileName: string, fileType: FileType) => {
       const trimmed = fileName.trim();
-      let finalName = trimmed || generateNewFileName(entries);
+      let finalName = trimmed || generateNewFileName(entries, defaultFileNameBase);
 
       if (isNameTaken(entries, 'file', finalName)) {
-        finalName = generateNewFileName(entries);
+        finalName = generateNewFileName(entries, defaultFileNameBase);
       }
 
       const newFile = createBlankFile(finalName, undefined, fileType);
@@ -1349,7 +1412,7 @@ export function App() {
       setActiveTypeMenuId(null);
       await localforage.setItem(CURRENT_FILE_ID_KEY, newFile.id);
     },
-    [entries, selectedFolderId, updateEntriesState]
+    [defaultFileNameBase, entries, selectedFolderId, updateEntriesState]
   );
 
   const cancelRename = useCallback(() => {
@@ -1361,7 +1424,7 @@ export function App() {
   }, []);
 
   const handleCreateFolder = useCallback(() => {
-    const name = generateNewFolderName(entries);
+    const name = generateNewFolderName(entries, defaultFolderNameBase);
     const newFolder = createFolder(name);
     updateEntriesState((prev) => {
       if (!selectedFolderId) {
@@ -1376,17 +1439,17 @@ export function App() {
     setSelectedFolderId(newFolder.id);
     setSidebarOpen(true);
     setActiveTypeMenuId(null);
-  }, [entries, selectedFolderId, updateEntriesState]);
+  }, [defaultFolderNameBase, entries, selectedFolderId, updateEntriesState]);
 
   const openCreateDialog = useCallback(() => {
     cancelRename();
-    const defaultName = generateNewFileName(entries);
+    const defaultName = generateNewFileName(entries, defaultFileNameBase);
     setCreateName(defaultName);
     setCreateType('domain');
     setCreateError(null);
     setCreateDialogOpen(true);
     setActiveTypeMenuId(null);
-  }, [cancelRename, entries]);
+  }, [cancelRename, defaultFileNameBase, entries]);
 
   const closeCreateDialog = useCallback(() => {
     setCreateDialogOpen(false);
@@ -1396,17 +1459,17 @@ export function App() {
   const confirmCreateFile = useCallback(async () => {
     const trimmed = createName.trim();
     if (!trimmed) {
-      setCreateError('名称不能为空');
+      setCreateError(nameRequiredMessage);
       return;
     }
     if (isNameTaken(entries, 'file', trimmed)) {
-      setCreateError('名称已存在');
+      setCreateError(nameExistsMessage);
       return;
     }
     await handleCreateFile(trimmed, createType);
     setCreateDialogOpen(false);
     setCreateError(null);
-  }, [createName, createType, entries, handleCreateFile]);
+  }, [createName, createType, entries, handleCreateFile, nameExistsMessage, nameRequiredMessage]);
 
   const handleSelectFile = useCallback(
     async (fileId: string) => {
@@ -1453,7 +1516,7 @@ export function App() {
     }
     const trimmed = renameValue.trim();
     if (!trimmed) {
-      setRenameError('名称不能为空');
+      setRenameError(nameRequiredMessage);
       return false;
     }
     if (trimmed === target.name) {
@@ -1461,7 +1524,7 @@ export function App() {
       return true;
     }
     if (isNameTaken(entries, target.type, trimmed, target.id)) {
-      setRenameError('名称已存在');
+      setRenameError(nameExistsMessage);
       return false;
     }
     const timestamp = Date.now();
@@ -1477,6 +1540,8 @@ export function App() {
   }, [
     cancelRename,
     entries,
+    nameExistsMessage,
+    nameRequiredMessage,
     renamingEntryId,
     renameValue,
     setRenameError,
@@ -1506,7 +1571,7 @@ export function App() {
 
         let remainingFiles = flattenFiles(updatedEntries);
         if (remainingFiles.length === 0) {
-          const fallbackName = generateNewFileName(updatedEntries);
+          const fallbackName = generateNewFileName(updatedEntries, defaultFileNameBase);
           fallbackFile = createBlankFile(fallbackName, undefined, 'others');
           updatedEntries = [...updatedEntries, fallbackFile];
           remainingFiles = [fallbackFile];
@@ -1602,6 +1667,7 @@ export function App() {
     [
       cancelRename,
       currentFileId,
+      defaultFileNameBase,
       persistEntries,
       renamingEntryId,
       selectedFolderId,
@@ -1677,8 +1743,11 @@ export function App() {
     : null;
 
   const renderEntries = useCallback(
-    (list: BoardEntry[], depth = 0): JSX.Element[] =>
-      list.map((entry) => {
+    (list: BoardEntry[], depth = 0): JSX.Element[] => {
+      const moreActionsLabel = fileManagerText.moreActions;
+      const renameLabel = fileManagerText.rename;
+      const deleteLabel = fileManagerText.delete;
+      return list.map((entry) => {
         const isActive = entry.type === 'file' && currentFileId === entry.id;
         const isFolderSelected =
           entry.type === 'folder' && selectedFolderId === entry.id;
@@ -1792,7 +1861,7 @@ export function App() {
                         }}
                       >
                         <span>{option.icon}</span>
-                        <span>{option.label}</span>
+                        <span>{fileManagerText.fileTypes[option.value]}</span>
                       </button>
                     ))}
                   </div>
@@ -1839,7 +1908,7 @@ export function App() {
                   <button
                     className={styles.entryActionToggle}
                     type="button"
-                    aria-label="更多操作"
+                    aria-label={moreActionsLabel}
                     onClick={(event) => event.stopPropagation()}
                   >
                     ⋯
@@ -1852,7 +1921,7 @@ export function App() {
                         startRenameEntry(entry.id);
                       }}
                     >
-                      重命名
+                      {renameLabel}
                     </button>
                     <button
                       type="button"
@@ -1861,7 +1930,7 @@ export function App() {
                         requestDeleteEntry(entry.id);
                       }}
                     >
-                      删除
+                      {deleteLabel}
                     </button>
                   </div>
                 </div>
@@ -1872,12 +1941,14 @@ export function App() {
             ) : null}
           </li>
         );
-      }),
+      });
+    },
     [
       activeTypeMenuId,
       applyRename,
       cancelRename,
       currentFileId,
+      fileManagerText,
       handleSelectFile,
       handleToggleFolderSelection,
       renamingEntryId,
@@ -1894,14 +1965,15 @@ export function App() {
   );
 
   const currentFile = currentFileId ? findFileById(entries, currentFileId) : null;
+  const uploadButtonLabel = uploading ? fileManagerText.uploading : fileManagerText.upload;
 
   useEffect(() => {
     if (!initialized || currentFile) {
       return;
     }
-    const defaultName = generateNewFileName(entries);
+    const defaultName = generateNewFileName(entries, defaultFileNameBase);
     void handleCreateFile(defaultName, 'others');
-  }, [currentFile, entries, handleCreateFile, initialized]);
+  }, [currentFile, defaultFileNameBase, entries, handleCreateFile, initialized]);
 
   if (!initialized || !currentFile) {
     return null;
@@ -1914,7 +1986,8 @@ export function App() {
         className={`${styles.toggleButton} ${isDraggingToggle ? styles.toggleButtonDragging : ''}`}
         type="button"
         onClick={handleToggleButtonClick}
-        aria-label="切换文件列表"
+        aria-label={fileManagerText.toggleAria}
+        title={fileManagerText.toggleAria}
         style={{
           top: `${toggleButtonPosition.top}px`,
           left: `${toggleButtonPosition.left}px`,
@@ -1930,14 +2003,14 @@ export function App() {
         className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}
       >
         <div className={styles.sidebarHeader}>
-          <span className={styles.sidebarTitle}></span>
+          <span className={styles.sidebarTitle}>{fileManagerText.sidebarTitle}</span>
           <div className={styles.sidebarActions}>
             <button
               className={styles.newFileButton}
               type="button"
               onClick={openCreateDialog}
-              title="新建文件"
-              aria-label="新建文件"
+              title={fileManagerText.newFile}
+              aria-label={fileManagerText.newFile}
             >
               <FileAddIcon aria-hidden="true" className={styles.actionIcon} />
             </button>
@@ -1945,8 +2018,8 @@ export function App() {
               className={styles.newFolderButton}
               type="button"
               onClick={handleCreateFolder}
-              title="新建文件夹"
-              aria-label="新建文件夹"
+              title={fileManagerText.newFolder}
+              aria-label={fileManagerText.newFolder}
             >
               <FolderAddIcon aria-hidden="true" className={styles.actionIcon} />
             </button>
@@ -1955,8 +2028,8 @@ export function App() {
               type="button"
               onClick={triggerUploadDialog}
               disabled={uploading}
-              title={uploading ? '正在上传PDDL文件' : '上传PDDL文件'}
-              aria-label={uploading ? '正在上传PDDL文件' : '上传PDDL文件'}
+              title={uploadButtonLabel}
+              aria-label={uploadButtonLabel}
               aria-busy={uploading}
             >
               {uploading ? (
@@ -1974,7 +2047,8 @@ export function App() {
           </div>
           <div className={styles.currentDirectory}>
             <span>
-              当前目录：{selectedFolder ? selectedFolder.name : '根目录'}
+              {fileManagerText.currentDirectory}
+              {selectedFolder ? selectedFolder.name : fileManagerText.root}
             </span>
             {selectedFolder ? (
               <button
@@ -1982,14 +2056,14 @@ export function App() {
                 className={styles.clearSelectionButton}
                 onClick={handleClearFolderSelection}
               >
-                返回根目录
+                {fileManagerText.backToRoot}
               </button>
             ) : null}
           </div>
         </div>
         <ul className={styles.fileList}>
           {entries.length === 0 ? (
-            <li className={styles.emptyHint}>暂无画布</li>
+            <li className={styles.emptyHint}>{fileManagerText.emptyState}</li>
           ) : (
             renderEntries(entries)
           )}
@@ -2096,7 +2170,7 @@ export function App() {
       {chatOpen && (
         <aside className={styles.chatPanel}>
           <div className={styles.chatHeader}>
-            <h3>PDDL 助手</h3>
+            <h3>规划助手</h3>
             <button
               className={styles.chatCloseButton}
               onClick={toggleChat}
@@ -2181,10 +2255,10 @@ export function App() {
               event.stopPropagation();
             }}
           >
-            <h2 className={styles.modalTitle}>新建画布</h2>
+            <h2 className={styles.modalTitle}>{fileManagerText.createDialog.title}</h2>
             <div className={styles.modalField}>
               <label className={styles.modalLabel} htmlFor="create-board-name">
-                名称
+                {fileManagerText.createDialog.nameLabel}
               </label>
               <input
                 id="create-board-name"
@@ -2214,7 +2288,7 @@ export function App() {
               ) : null}
             </div>
             <div className={styles.modalField}>
-              <span className={styles.modalLabel}>类型</span>
+              <span className={styles.modalLabel}>{fileManagerText.createDialog.typeLabel}</span>
               <div className={styles.typeOptionGroup}>
                 {FILE_TYPE_OPTIONS.map((option) => (
                   <button
@@ -2227,7 +2301,7 @@ export function App() {
                     onClick={() => setCreateType(option.value)}
                   >
                     <span>{option.icon}</span>
-                    <span>{option.label}</span>
+                    <span>{fileManagerText.fileTypes[option.value]}</span>
                   </button>
                 ))}
               </div>
@@ -2238,7 +2312,7 @@ export function App() {
                 className={`${styles.modalButton} ${styles.ghostButton}`}
                 onClick={closeCreateDialog}
               >
-                取消
+                {fileManagerText.createDialog.cancel}
               </button>
               <button
                 type="button"
@@ -2247,7 +2321,7 @@ export function App() {
                   void confirmCreateFile();
                 }}
               >
-                创建
+                {fileManagerText.createDialog.confirm}
               </button>
             </div>
           </div>
@@ -2266,32 +2340,48 @@ export function App() {
               event.stopPropagation();
             }}
           >
-            <h2 className={styles.modalTitle}>确认删除</h2>
-            <p className={styles.modalBody}>
-              确定要删除
-              <span className={styles.modalHighlight}>
-                {deleteTarget.type === 'file' ? '画布' : '文件夹'}「
-                {deleteTarget.name}」
-              </span>
-              {deleteTarget.type === 'folder'
-                ? `（包含 ${deleteTarget.fileCount} 个画布）`
-                : ''}
-              吗？删除后无法恢复。
-            </p>
+            <h2 className={styles.modalTitle}>{fileManagerText.deleteDialog.title}</h2>
+            {(() => {
+              const typeLabel =
+                deleteTarget.type === 'file'
+                  ? fileManagerText.itemLabels.file.singular
+                  : fileManagerText.itemLabels.folder.singular;
+              const folderInfo =
+                deleteTarget.type === 'folder'
+                  ? fileManagerText.deleteDialog.folderInfo(
+                      deleteTarget.fileCount,
+                      fileManagerText.itemLabels.file
+                    )
+                  : '';
+              return (
+                <p className={styles.modalBody}>
+                  {fileManagerText.deleteDialog.messagePrefix}{' '}
+                  <span className={styles.modalHighlight}>
+                    {typeLabel}
+                    {fileManagerText.quotes.left}
+                    {deleteTarget.name}
+                    {fileManagerText.quotes.right}
+                  </span>
+                  {folderInfo}
+                  {fileManagerText.deleteDialog.messageSuffix}{' '}
+                  {fileManagerText.deleteDialog.warning}
+                </p>
+              );
+            })()}
             <div className={styles.modalActions}>
               <button
                 type="button"
                 className={`${styles.modalButton} ${styles.ghostButton}`}
                 onClick={cancelDeleteEntry}
               >
-                取消
+                {fileManagerText.createDialog.cancel}
               </button>
               <button
                 type="button"
                 className={`${styles.modalButton} ${styles.dangerButton}`}
                 onClick={confirmDeleteEntry}
               >
-                删除
+                {fileManagerText.deleteDialog.confirm}
               </button>
             </div>
           </div>

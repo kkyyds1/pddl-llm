@@ -11,6 +11,7 @@ import {
   PddlNumberLiteral,
   PddlCompositeExpression,
   PddlExpressionArgument,
+  PddlNumericExpression,
 } from '../app/pddl_types';
 
 // 清理ID中的特殊字符，使其符合CSS选择器规范
@@ -24,7 +25,7 @@ const NODE_HEIGHT = 60;
 const PARAMETER_NODE_WIDTH = NODE_WIDTH * 0.7;
 const PARAMETER_NODE_HEIGHT = NODE_HEIGHT * 0.7;
 const NODE_SPACING_X = 200;
-const NODE_SPACING_Y = 150;
+const NODE_SPACING_Y = 110;
 const START_X = 100;
 const START_Y = 100;
 const PRECONDITION_COLOR = '#f28b82';
@@ -32,11 +33,26 @@ const EFFECT_COLOR = '#81c995';
 const SECTION_GAP = NODE_SPACING_Y / 2;
 const ACTION_COLUMNS = 3;
 const ACTION_GROUP_WIDTH = NODE_WIDTH + NODE_SPACING_X * (ACTION_COLUMNS - 1);
-const PROBLEM_MAX_COLUMNS = 12;
+const PROBLEM_MAX_COLUMNS = 8;
 const FUNCTION_NODE_COLOR = '#b39ddb';
 const OPERATOR_NODE_COLOR = '#4a90e2';
-const COMPARATOR_STACK_LEVELS = 3;
-const COMPARATOR_BLOCK_HEIGHT = NODE_SPACING_Y * COMPARATOR_STACK_LEVELS;
+const LITERAL_NODE_COLOR = '#ffcc80';
+const NUMERIC_EFFECT_TYPES = new Set(['increase', 'decrease']);
+const NUMERIC_OPERATOR_LABEL_MAP: Record<string, string> = {
+  times: '×',
+  '*': '×',
+  multiply: '×',
+  plus: '+',
+  '+': '+',
+  minus: '-',
+  '-': '-',
+  subtract: '-',
+  divide: '÷',
+  '/': '÷',
+  'scale-up': '↑',
+  'scale-down': '↓',
+  assign: '=',
+};
 const COMPARATOR_TYPES = new Set([
   '=',
   '<=',
@@ -76,6 +92,11 @@ interface GraphNodeInfo {
   height: number;
   shape: GraphNodeShape;
 }
+
+type FunctionGraphNodeInfo = GraphNodeInfo & {
+  expr: PddlFunctionExpression;
+  label: string;
+};
 
 function createGraphNodeInfo(
   id: string,
@@ -298,11 +319,12 @@ function createDescriptionNode(
     showOnHover: true,
     editable: true,
   };
+  const paragraphAlign = role === 'problem-init' ? 'left' : 'center';
   (node as any).text = {
     children: [
       {
         type: 'paragraph',
-        align: 'center',
+        align: paragraphAlign,
         children: [
           {
             text: text,
@@ -334,6 +356,106 @@ function isFunctionExpressionArgument(
   );
 }
 
+function isTypedParameterArgument(argument?: PddlExpressionArgument): argument is PddlTypedParameter {
+  return Boolean(
+    argument &&
+      typeof argument === 'object' &&
+      'name' in argument &&
+      typeof (argument as any).name === 'string' &&
+      !('arguments' in argument) &&
+      !('children' in argument) &&
+      !('argument' in argument) &&
+      !('items' in argument)
+  );
+}
+
+function isPddlExpressionValue(argument?: PddlExpressionArgument): argument is PddlExpression {
+  if (!argument || typeof argument !== 'object') {
+    return false;
+  }
+  const typeHint = (argument as any).type;
+  if (typeof typeHint === 'string') {
+    if (
+      typeHint === 'predicate' ||
+      typeHint === 'function' ||
+      typeHint === 'not' ||
+      typeHint === 'assign' ||
+      typeHint === 'scale-up' ||
+      typeHint === 'scale-down' ||
+      typeHint === 'number' ||
+      NUMERIC_EFFECT_TYPES.has(typeHint)
+    ) {
+      return true;
+    }
+  }
+  return Boolean(
+    ('arguments' in (argument as any) && Array.isArray((argument as any).arguments)) ||
+      ('children' in (argument as any) && Array.isArray((argument as any).children)) ||
+      ('argument' in (argument as any) && (argument as any).argument) ||
+      ('items' in (argument as any) && Array.isArray((argument as any).items))
+  );
+}
+
+function isNumericString(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return !Number.isNaN(Number(trimmed));
+}
+
+function getNumericLiteralText(argument?: PddlExpressionArgument): string | null {
+  if (argument == null) {
+    return null;
+  }
+
+  if (typeof argument === 'number' && Number.isFinite(argument)) {
+    return `${argument}`;
+  }
+
+  if (typeof argument === 'string' && isNumericString(argument)) {
+    return argument.trim();
+  }
+
+  if (isNumberLiteralArgument(argument)) {
+    return `${argument.value}`;
+  }
+
+  if (typeof argument === 'object') {
+    const argAny = argument as any;
+    const typeHint = typeof argAny.type === 'string' ? argAny.type : '';
+    if (
+      typeHint === 'function' ||
+      typeHint === 'predicate' ||
+      typeHint === 'not' ||
+      typeHint === 'increase' ||
+      typeHint === 'decrease' ||
+      typeHint === 'assign' ||
+      typeHint === 'scale-up' ||
+      typeHint === 'scale-down'
+    ) {
+      return null;
+    }
+    const hasNestedStructure =
+      Array.isArray(argAny.arguments) ||
+      Array.isArray(argAny.children) ||
+      Array.isArray(argAny.items) ||
+      Boolean(argAny.argument);
+    if (hasNestedStructure) {
+      return null;
+    }
+    const rawValue = argAny.value ?? argAny.name;
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      return `${rawValue}`;
+    }
+    if (typeof rawValue === 'string' && isNumericString(rawValue)) {
+      return rawValue.trim();
+    }
+  }
+
+  return null;
+}
+
 function stringifyExpressionArgument(argument?: PddlExpressionArgument): string {
   if (!argument) {
     return '?';
@@ -356,7 +478,14 @@ function stringifyExpressionArgument(argument?: PddlExpressionArgument): string 
   return '?';
 }
 
-function formatFunctionLabel(funcExpr: PddlFunctionExpression): string {
+function formatFunctionLabel(
+  funcExpr: PddlFunctionExpression,
+  options: { includeArguments?: boolean } = {}
+): string {
+  const includeArguments = options.includeArguments ?? true;
+  if (!includeArguments) {
+    return funcExpr.name;
+  }
   const rawArgs = Array.isArray(funcExpr.arguments) ? funcExpr.arguments : [];
   const argTexts = rawArgs
     .map((arg) => stringifyExpressionArgument(arg))
@@ -370,6 +499,52 @@ function getComparatorLabel(type?: string): string {
   }
   const normalized = type.trim();
   return COMPARATOR_LABEL_MAP[normalized] ?? normalized;
+}
+
+function getOperatorLabel(type?: string, fallback?: string): string {
+  if (!type || typeof type !== 'string') {
+    return fallback ?? '?';
+  }
+  const normalized = type.trim();
+  return NUMERIC_OPERATOR_LABEL_MAP[normalized] ?? fallback ?? normalized;
+}
+
+function isNumericEffectExpression(expr?: PddlExpression): expr is PddlNumericExpression {
+  return Boolean(expr && NUMERIC_EFFECT_TYPES.has(expr.type));
+}
+
+function expressionArgumentsToExpressions(args?: PddlExpressionArgument[]): PddlExpression[] {
+  if (!Array.isArray(args)) {
+    return [];
+  }
+  return args.filter((arg): arg is PddlExpression => isPddlExpressionValue(arg));
+}
+
+function extractNumericEffects(expressions: PddlExpression[]): PddlNumericExpression[] {
+  const numericExpressions: PddlNumericExpression[] = [];
+  const visit = (expr: PddlExpression) => {
+    if (isNumericEffectExpression(expr)) {
+      numericExpressions.push(expr);
+    }
+    if ('children' in expr && Array.isArray(expr.children)) {
+      expr.children.forEach((child) => visit(child));
+    }
+    if ('items' in expr && Array.isArray((expr as any).items)) {
+      (expr as any).items.forEach((item: PddlExpression) => visit(item));
+    }
+    if ('argument' in expr && expr.argument && isPddlExpressionValue(expr.argument)) {
+      visit(expr.argument);
+    }
+    if ('arguments' in expr && Array.isArray(expr.arguments)) {
+      expr.arguments.forEach((arg) => {
+        if (isPddlExpressionValue(arg)) {
+          visit(arg);
+        }
+      });
+    }
+  };
+  expressions.forEach((expr) => visit(expr));
+  return numericExpressions;
 }
 
 // 提取谓词或函数表达式中的参数
@@ -387,6 +562,23 @@ function extractExpressionArguments(expr: PddlExpression): string[] {
 interface ExtractedPredicate {
   expr: PddlPredicateExpression;
   isNegated: boolean;
+}
+
+function getPredicateLabel(extracted: ExtractedPredicate): string {
+  return extracted.isNegated ? `not ${extracted.expr.name}` : extracted.expr.name;
+}
+
+function getUniquePredicates(predicates: ExtractedPredicate[]): ExtractedPredicate[] {
+  const seen = new Set<string>();
+  const unique: ExtractedPredicate[] = [];
+  predicates.forEach((predicate) => {
+    const label = getPredicateLabel(predicate);
+    if (!seen.has(label)) {
+      seen.add(label);
+      unique.push(predicate);
+    }
+  });
+  return unique;
 }
 
 function extractAllPredicates(expressions: PddlExpression[]): ExtractedPredicate[] {
@@ -466,6 +658,13 @@ export function createActionGraph(action: PddlAction, startX: number, startY: nu
       type: 'precondition' | 'effect';
     }
   > = [];
+  const functionNodes: FunctionGraphNodeInfo[] = [];
+  const functionNodeMap = new Map<string, FunctionGraphNodeInfo>();
+  const getFunctionNodeKey = (funcExpr: PddlFunctionExpression) => {
+    const args = Array.isArray(funcExpr.arguments) ? funcExpr.arguments : [];
+    const argSignature = args.map((arg) => stringifyExpressionArgument(arg)).join('|');
+    return `${funcExpr.name}-${argSignature}`;
+  };
 
   // 1. 创建action名称标题节点
   const actionTitleId = sanitizeId(`action-${action.name}`);
@@ -483,6 +682,7 @@ export function createActionGraph(action: PddlAction, startX: number, startY: nu
 
   const preconditionPredicates = extractAllPredicates(action.preconditions);
   const effectPredicates = extractAllPredicates(action.effects);
+  const numericEffects = extractNumericEffects(action.effects);
   const preconditionRows = Math.ceil(preconditionPredicates.length / ACTION_COLUMNS);
   const parameterRows = Math.ceil(action.parameters.length / ACTION_COLUMNS);
   const effectRows = Math.ceil(effectPredicates.length / ACTION_COLUMNS);
@@ -493,7 +693,7 @@ export function createActionGraph(action: PddlAction, startX: number, startY: nu
 
   const descriptionId = sanitizeId(`${groupId}-description`);
   const descriptionBaseY = nextSectionY;
-  const descriptionHeight = NODE_HEIGHT * 4;
+  const descriptionHeight = NODE_HEIGHT * 2;
   registerElement(
     createDescriptionNode(
       actionDescription,
@@ -577,6 +777,173 @@ export function createActionGraph(action: PddlAction, startX: number, startY: nu
     maxElementBottom = Math.max(maxElementBottom, effectStartY + effectRows * NODE_SPACING_Y);
   }
 
+  if (numericEffects.length > 0) {
+    if (effectPredicates.length > 0) {
+      nextSectionY += SECTION_GAP;
+    }
+    const numericSectionStartY = nextSectionY;
+    let numericNodeCount = 0;
+    let numericEdgeCounter = 0;
+    let operatorNodeCounter = 0;
+    let literalNodeCounter = 0;
+    let functionNodeCounter = 0;
+    const getNumericNodePosition = () => {
+      const index = numericNodeCount;
+      const column = index % ACTION_COLUMNS;
+      const row = Math.floor(index / ACTION_COLUMNS);
+      const x = startX + column * NODE_SPACING_X;
+      const y = numericSectionStartY + row * NODE_SPACING_Y;
+      numericNodeCount += 1;
+      return { x, y };
+    };
+
+    const createLiteralNode = (label: string, suffix: string): GraphNodeInfo => {
+      const { x, y } = getNumericNodePosition();
+      const nodeId = sanitizeId(`literal-${action.name}-${suffix}-${literalNodeCounter++}`);
+      registerElement(createPredicateNode(label, x, y, nodeId, LITERAL_NODE_COLOR));
+      const info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+      maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+      return info;
+    };
+
+    const createOperatorNode = (label: string, suffix: string, fillColor: string): GraphNodeInfo => {
+      const { x, y } = getNumericNodePosition();
+      const nodeId = sanitizeId(`operator-${action.name}-${suffix}-${operatorNodeCounter++}`);
+      registerElement(createPredicateNode(label, x, y, nodeId, fillColor));
+      const info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+      maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+      return info;
+    };
+
+    const ensureFunctionNode = (funcExpr: PddlFunctionExpression): FunctionGraphNodeInfo => {
+      const key = getFunctionNodeKey(funcExpr);
+      const existing = functionNodeMap.get(key);
+      if (existing) {
+        return existing;
+      }
+      const { x, y } = getNumericNodePosition();
+      const label = formatFunctionLabel(funcExpr);
+      const nodeId = sanitizeId(`function-${action.name}-${sanitizeId(key)}-${functionNodeCounter++}`);
+      registerElement(createPredicateNode(label, x, y, nodeId, FUNCTION_NODE_COLOR));
+      const info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+      const record: FunctionGraphNodeInfo = {
+        ...info,
+        expr: funcExpr,
+        label,
+      };
+      functionNodeMap.set(key, record);
+      functionNodes.push(record);
+      maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+      return record;
+    };
+
+    const createNumericEdge = (source: GraphNodeInfo, target: GraphNodeInfo) => {
+      const edgeId = sanitizeId(`edge-${action.name}-numeric-${numericEdgeCounter++}`);
+      registerElement(createArrowLine(source, target, undefined, edgeId));
+    };
+
+    const handleArgument = (
+      parentNode: GraphNodeInfo,
+      argument: PddlExpressionArgument | undefined,
+      suffix: string
+    ) => {
+      if (!argument) {
+        return;
+      }
+      if (isTypedParameterArgument(argument)) {
+        const paramNode = parameterNodes.get(argument.name);
+        if (paramNode) {
+          createNumericEdge(paramNode, parentNode);
+          return;
+        }
+        const label = argument.type ? `${argument.name}: ${argument.type}` : argument.name;
+        const literalNode = createLiteralNode(label, `param-${argument.name}-${suffix}`);
+        createNumericEdge(literalNode, parentNode);
+        return;
+      }
+      if (isFunctionExpressionArgument(argument)) {
+        const functionNode = ensureFunctionNode(argument);
+        createNumericEdge(functionNode, parentNode);
+        return;
+      }
+      if (isNumberLiteralArgument(argument)) {
+        const literalNode = createLiteralNode(`${argument.value}`, `number-${suffix}`);
+        createNumericEdge(literalNode, parentNode);
+        return;
+      }
+      if (typeof argument === 'number' && Number.isFinite(argument)) {
+        const literalNode = createLiteralNode(`${argument}`, `number-${suffix}`);
+        createNumericEdge(literalNode, parentNode);
+        return;
+      }
+      if (typeof argument === 'string') {
+        const trimmed = argument.trim();
+        if (!trimmed) {
+          return;
+        }
+        const literalNode = createLiteralNode(trimmed, `string-${suffix}`);
+        createNumericEdge(literalNode, parentNode);
+        return;
+      }
+      if (!isPddlExpressionValue(argument)) {
+        return;
+      }
+      const expr = argument as PddlExpression;
+      let operatorLabel = expr.type === 'predicate' ? expr.name : getOperatorLabel(expr.type, expr.name);
+      if (expr.type === 'predicate' && !operatorLabel) {
+        operatorLabel = expr.name ?? 'predicate';
+      }
+      const fillColor = isNumericEffectExpression(expr) ? EFFECT_COLOR : OPERATOR_NODE_COLOR;
+      const operatorNode = createOperatorNode(
+        operatorLabel || expr.type,
+        `operator-${expr.type}-${suffix}`,
+        fillColor
+      );
+      createNumericEdge(operatorNode, parentNode);
+
+      if ('arguments' in expr && Array.isArray(expr.arguments)) {
+        expr.arguments.forEach((childArg, childIndex) => {
+          handleArgument(operatorNode, childArg, `${suffix}-arg-${childIndex}`);
+        });
+      }
+      if ('children' in expr && Array.isArray(expr.children)) {
+        expr.children.forEach((childExpr, childIndex) => {
+          handleArgument(operatorNode, childExpr, `${suffix}-child-${childIndex}`);
+        });
+      }
+      if ('argument' in expr && expr.argument) {
+        handleArgument(operatorNode, expr.argument, `${suffix}-argument`);
+      }
+      if ('items' in expr && Array.isArray((expr as any).items)) {
+        (expr as any).items.forEach((childExpr: PddlExpression, childIndex: number) => {
+          handleArgument(operatorNode, childExpr, `${suffix}-item-${childIndex}`);
+        });
+      }
+    };
+
+    numericEffects.forEach((numericExpr, index) => {
+      const targetArgument =
+        Array.isArray(numericExpr.arguments) && numericExpr.arguments.length > 0
+          ? numericExpr.arguments[0]
+          : undefined;
+      const targetFunction =
+        targetArgument && isFunctionExpressionArgument(targetArgument) ? targetArgument : null;
+      const label = targetFunction
+        ? `${numericExpr.type} ${formatFunctionLabel(targetFunction, { includeArguments: false })}`
+        : numericExpr.type;
+      const numericNode = createOperatorNode(label, `numeric-${numericExpr.type}-${index}`, EFFECT_COLOR);
+      const args = Array.isArray(numericExpr.arguments) ? numericExpr.arguments : [];
+      args.forEach((arg, argIndex) => {
+        handleArgument(numericNode, arg, `numeric-${index}-arg-${argIndex}`);
+      });
+    });
+
+    const numericRows = Math.ceil(Math.max(1, numericNodeCount) / ACTION_COLUMNS);
+    lastSectionStartY = numericSectionStartY;
+    lastSectionRows = Math.max(numericRows, 1);
+    nextSectionY = numericSectionStartY + Math.max(1, numericRows) * NODE_SPACING_Y;
+  }
+
   let edgeIndex = 0;
   predicateNodes.forEach((predicateNode) => {
     const args = extractExpressionArguments(predicateNode.expr);
@@ -611,6 +978,26 @@ export function createActionGraph(action: PddlAction, startX: number, startY: nu
           edgeId
         )
       );
+    }
+  });
+
+  functionNodes.forEach((functionNode) => {
+    const args = extractExpressionArguments(functionNode.expr);
+    if (args.length === 0) {
+      return;
+    }
+    const firstParam = parameterNodes.get(args[0]);
+    if (firstParam) {
+      const edgeId = sanitizeId(`edge-${action.name}-${functionNode.id}-in-${edgeIndex++}`);
+      registerElement(createArrowLine(firstParam, functionNode, undefined, edgeId));
+    }
+    for (let i = 1; i < args.length; i += 1) {
+      const targetParam = parameterNodes.get(args[i]);
+      if (!targetParam) {
+        continue;
+      }
+      const edgeId = sanitizeId(`edge-${action.name}-${functionNode.id}-out-${edgeIndex++}`);
+      registerElement(createArrowLine(functionNode, targetParam, undefined, edgeId));
     }
   });
 
@@ -670,6 +1057,20 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
       category: 'init' | 'goal';
     }
   > = [];
+  const predicateNodeInfosByCategory: Record<'init' | 'goal', Map<string, GraphNodeInfo>> = {
+    init: new Map(),
+    goal: new Map(),
+  };
+  const functionNodesByCategory: Record<'init' | 'goal', Map<string, GraphNodeInfo>> = {
+    init: new Map(),
+    goal: new Map(),
+  };
+  const comparatorNodesByCategory: Record<'init' | 'goal', Map<string, GraphNodeInfo>> = {
+    init: new Map(),
+    goal: new Map(),
+  };
+  const normalizeLiteralForKey = (value?: string | null): string =>
+    value ? value.replace(/\s+/g, ' ').trim() : '';
   const functionNodes: Array<
     GraphNodeInfo & {
       expr: PddlFunctionExpression;
@@ -678,44 +1079,38 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
     }
   > = [];
 
-  const descriptionHeight = NODE_HEIGHT * 4;
   const initExpressions = Array.isArray(problem.init)
     ? problem.init
     : problem.init
     ? [problem.init]
     : [];
   const initPredicates = extractAllPredicates(initExpressions);
+  const uniqueInitPredicates = getUniquePredicates(initPredicates);
   const initComparators = extractComparatorExpressions(initExpressions);
   const goalExpressions = problem.goal ? [problem.goal] : [];
   const goalPredicates = extractAllPredicates(goalExpressions);
+  const uniqueGoalPredicates = getUniquePredicates(goalPredicates);
   const goalComparators = extractComparatorExpressions(goalExpressions);
   const objects = Array.isArray(problem.objects) ? problem.objects : [];
   const sectionCounts = [
-    initPredicates.length + initComparators.length,
+    uniqueInitPredicates.length + initComparators.length,
     objects.length,
-    goalPredicates.length + goalComparators.length,
+    uniqueGoalPredicates.length + goalComparators.length,
   ];
   const maxCount = Math.max(1, ...sectionCounts);
   const problemColumns = Math.min(PROBLEM_MAX_COLUMNS, maxCount);
   const problemWidth = NODE_WIDTH + NODE_SPACING_X * (problemColumns - 1);
+  const descriptionHeight = NODE_HEIGHT * 8;
+  const descriptionWidth = Math.min(problemWidth, NODE_WIDTH * 6);
+  const sidebarGap = NODE_SPACING_X / 2;
+  const contentStartX = startX + descriptionWidth + sidebarGap;
 
   const initDescriptionId = sanitizeId(`${groupId}-init-description`);
-  registerElement(
-    createDescriptionNode(
-      initDescriptionText,
-      startX,
-      startY,
-      initDescriptionId,
-      problemWidth,
-      descriptionHeight,
-      'problem-init'
-    )
-  );
 
-  let maxElementBottom = startY + descriptionHeight;
-  let nextSectionY = startY + descriptionHeight + SECTION_GAP;
+  let maxElementBottom = startY;
+  let nextSectionY = startY;
   let lastSectionStartY = startY;
-  let lastSectionRows = Math.max(1, Math.ceil(descriptionHeight / NODE_SPACING_Y));
+  let lastSectionRows = 1;
   let functionNodeCounter = 0;
   let valueNodeCounter = 0;
   let comparatorNodeCounter = 0;
@@ -724,45 +1119,63 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
   const createFunctionNodeForExpression = (
     funcExpr: PddlFunctionExpression,
     category: 'init' | 'goal',
-    x: number,
-    y: number,
+    getPosition: () => { x: number; y: number },
     suffix: string
   ): GraphNodeInfo => {
-    const label = formatFunctionLabel(funcExpr);
-    const nodeId = sanitizeId(
-      `function-${problem.name}-${category}-${suffix}-${functionNodeCounter++}-${funcExpr.name}`
-    );
-    registerElement(createPredicateNode(label, x, y, nodeId, FUNCTION_NODE_COLOR));
-    const info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+    const label = formatFunctionLabel(funcExpr, { includeArguments: false });
+    const functionKey = label;
+    const categoryFunctionMap = functionNodesByCategory[category];
+    let info: GraphNodeInfo;
+    if (categoryFunctionMap.has(functionKey)) {
+      info = categoryFunctionMap.get(functionKey)!;
+    } else {
+      const { x, y } = getPosition();
+      const nodeId = sanitizeId(
+        `function-${problem.name}-${category}-${suffix}-${functionNodeCounter++}-${funcExpr.name}`
+      );
+      registerElement(createPredicateNode(label, x, y, nodeId, FUNCTION_NODE_COLOR));
+      info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+      categoryFunctionMap.set(functionKey, info);
+      maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+    }
     functionNodes.push({
       ...info,
       expr: funcExpr,
       label,
       category,
     });
-    maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
     return info;
   };
 
   const createComparatorArgumentNode = (
     argument: PddlExpressionArgument | undefined,
     category: 'init' | 'goal',
-    x: number,
-    y: number,
+    getNextPosition: () => { x: number; y: number },
     suffix: string
-  ): GraphNodeInfo | null => {
+  ): { node: GraphNodeInfo | null; literalText: string | null } => {
     if (!argument) {
-      return null;
+      return { node: null, literalText: null };
     }
     if (isFunctionExpressionArgument(argument)) {
-      return createFunctionNodeForExpression(argument, category, x, y, suffix);
+      return {
+        node: createFunctionNodeForExpression(argument, category, getNextPosition, suffix),
+        literalText: null,
+      };
+    }
+    const literalText = getNumericLiteralText(argument);
+    if (literalText !== null) {
+      return { node: null, literalText };
     }
     const label = stringifyExpressionArgument(argument);
+    const { x, y } = getNextPosition();
     const nodeId = sanitizeId(`literal-${problem.name}-${category}-${suffix}-${valueNodeCounter++}`);
     registerElement(createPredicateNode(label, x, y, nodeId, FUNCTION_NODE_COLOR));
     const info = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
     maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
-    return info;
+    return {
+      node: info,
+      literalText: null,
+    };
   };
 
   const placeComparatorSection = (
@@ -773,68 +1186,122 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
     if (comparators.length === 0) {
       return baseY;
     }
-    const sectionRows = Math.ceil(comparators.length / problemColumns);
-    const sectionHeight = sectionRows * COMPARATOR_BLOCK_HEIGHT;
+    const comparatorColumns = Math.max(1, Math.min(PROBLEM_MAX_COLUMNS, problemColumns));
+    let argumentNodeCounter = 0;
+    const getArgumentPosition = () => {
+      const index = argumentNodeCounter;
+      argumentNodeCounter += 1;
+      const column = index % comparatorColumns;
+      const row = Math.floor(index / comparatorColumns);
+      return {
+        x: contentStartX + column * NODE_SPACING_X,
+        y: baseY + row * NODE_SPACING_Y,
+      };
+    };
+
+    type ComparatorRecord = {
+      index: number;
+      operatorLabel: string;
+      comparatorKey: string | null;
+      leftNode: GraphNodeInfo | null;
+      rightNode: GraphNodeInfo | null;
+    };
+
+    const comparatorRecords: ComparatorRecord[] = [];
 
     comparators.forEach((expr, index) => {
-      const column = index % problemColumns;
-      const row = Math.floor(index / problemColumns);
-      const x = startX + column * NODE_SPACING_X;
-      const stackTopY = baseY + row * COMPARATOR_BLOCK_HEIGHT;
       const args = Array.isArray(expr.arguments) ? expr.arguments : [];
       const leftArg = createComparatorArgumentNode(
         args[0],
         category,
-        x,
-        stackTopY,
+        getArgumentPosition,
         `comp-left-${category}-${index}`
       );
-      const operatorY = stackTopY + NODE_SPACING_Y;
-      const rightArgument = args[1];
-      const rightArgumentIsNumber = isNumberLiteralArgument(rightArgument);
-      const rightArgumentLabel = rightArgumentIsNumber ? stringifyExpressionArgument(rightArgument) : null;
-      const operatorLabel = rightArgumentLabel
-        ? `${getComparatorLabel(expr.type)} ${rightArgumentLabel}`
-        : getComparatorLabel(expr.type);
-      const operatorId = sanitizeId(
-        `operator-${problem.name}-${category}-${index}-${comparatorNodeCounter++}`
+      const rightArg = createComparatorArgumentNode(
+        args[1],
+        category,
+        getArgumentPosition,
+        `comp-right-${category}-${index}`
       );
-      registerElement(createPredicateNode(operatorLabel, x, operatorY, operatorId, OPERATOR_NODE_COLOR));
-      const operatorInfo = createGraphNodeInfo(operatorId, x, operatorY, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
-      maxElementBottom = Math.max(maxElementBottom, operatorY + NODE_HEIGHT);
+      const comparatorSymbol = getComparatorLabel(expr.type);
+      const operatorLabelSegments = [
+        leftArg.literalText,
+        comparatorSymbol,
+        rightArg.literalText,
+      ].filter((segment): segment is string => Boolean(segment && segment.trim().length > 0));
+      const operatorLabel =
+        operatorLabelSegments.length > 0 ? operatorLabelSegments.join(' ') : comparatorSymbol;
+      const leftLiteralKey = normalizeLiteralForKey(leftArg.literalText);
+      const rightLiteralKey = normalizeLiteralForKey(rightArg.literalText);
+      const hasLiteralKey = leftLiteralKey.length > 0 || rightLiteralKey.length > 0;
+      const comparatorKey = hasLiteralKey
+        ? `${comparatorSymbol}|${leftLiteralKey}|${rightLiteralKey}`
+        : null;
+      comparatorRecords.push({
+        index,
+        operatorLabel,
+        comparatorKey,
+        leftNode: leftArg.node,
+        rightNode: rightArg.node,
+      });
+    });
 
-      const rightArg =
-        !rightArgumentIsNumber && rightArgument
-          ? createComparatorArgumentNode(
-              rightArgument,
-              category,
-              x,
-              operatorY + NODE_SPACING_Y,
-              `comp-right-${category}-${index}`
-            )
-          : null;
+    const argumentRows =
+      argumentNodeCounter === 0 ? 0 : Math.ceil(argumentNodeCounter / comparatorColumns);
+    const argumentSectionHeight = argumentRows * NODE_SPACING_Y;
+    const colorRowGap = argumentSectionHeight > 0 ? SECTION_GAP : 0;
+    const operatorBaseY = baseY + argumentSectionHeight + colorRowGap;
+    let operatorNodeCounter = 0;
+    const getOperatorPosition = () => {
+      const index = operatorNodeCounter;
+      operatorNodeCounter += 1;
+      const column = index % comparatorColumns;
+      const row = Math.floor(index / comparatorColumns);
+      return {
+        x: contentStartX + column * NODE_SPACING_X,
+        y: operatorBaseY + row * NODE_SPACING_Y,
+      };
+    };
 
-      if (leftArg) {
+    const categoryComparatorMap = comparatorNodesByCategory[category];
+
+    comparatorRecords.forEach((record) => {
+      let operatorInfo: GraphNodeInfo;
+      if (record.comparatorKey && categoryComparatorMap.has(record.comparatorKey)) {
+        operatorInfo = categoryComparatorMap.get(record.comparatorKey)!;
+      } else {
+        const { x, y } = getOperatorPosition();
+        const operatorId = sanitizeId(
+          `operator-${problem.name}-${category}-${record.index}-${comparatorNodeCounter++}`
+        );
+        registerElement(createPredicateNode(record.operatorLabel, x, y, operatorId, OPERATOR_NODE_COLOR));
+        operatorInfo = createGraphNodeInfo(operatorId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+        if (record.comparatorKey) {
+          categoryComparatorMap.set(record.comparatorKey, operatorInfo);
+        }
+        maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+      }
+
+      if (record.leftNode) {
         const edgeId = sanitizeId(
           `comp-edge-${problem.name}-${category}-in-${comparatorEdgeCounter++}`
         );
-        registerElement(createArrowLine(leftArg, operatorInfo, undefined, edgeId));
+        registerElement(createArrowLine(record.leftNode, operatorInfo, undefined, edgeId));
       }
 
-      if (rightArg) {
+      if (record.rightNode) {
         const edgeId = sanitizeId(
           `comp-edge-${problem.name}-${category}-out-${comparatorEdgeCounter++}`
         );
-        registerElement(createArrowLine(operatorInfo, rightArg, undefined, edgeId));
+        registerElement(createArrowLine(operatorInfo, record.rightNode, undefined, edgeId));
       }
-
-      const blockBottom = rightArg
-        ? rightArg.origin[1] + NODE_HEIGHT
-        : operatorInfo.origin[1] + NODE_HEIGHT;
-      maxElementBottom = Math.max(maxElementBottom, blockBottom);
     });
 
-    maxElementBottom = Math.max(maxElementBottom, baseY + sectionHeight);
+    const operatorRows =
+      operatorNodeCounter === 0 ? 0 : Math.ceil(operatorNodeCounter / comparatorColumns);
+    const operatorSectionHeight = operatorRows * NODE_SPACING_Y;
+    const sectionHeight = argumentSectionHeight + colorRowGap + operatorSectionHeight;
+    maxElementBottom = Math.max(maxElementBottom, operatorBaseY + operatorSectionHeight);
     lastSectionStartY = baseY;
     lastSectionRows = Math.max(lastSectionRows, Math.ceil(sectionHeight / NODE_SPACING_Y));
     return baseY + sectionHeight + SECTION_GAP;
@@ -847,41 +1314,44 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
     baseY: number
   ) => {
     const predicate = extracted.expr;
-    const x = startX + (index % problemColumns) * NODE_SPACING_X;
+    const x = contentStartX + (index % problemColumns) * NODE_SPACING_X;
     const y = baseY + Math.floor(index / problemColumns) * NODE_SPACING_Y;
     const nodeId = sanitizeId(`problem-${problem.name}-${category}-${index}-${predicate.name}`);
     const fillColor = category === 'init' ? PRECONDITION_COLOR : EFFECT_COLOR;
-    const label = extracted.isNegated ? `not ${predicate.name}` : predicate.name;
-
-    const nodeInfo = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
-    registerElement(createPredicateNode(label, x, y, nodeId, fillColor));
-    predicateNodes.push({
-      ...nodeInfo,
-      expr: predicate,
-      label,
-      category,
-    });
-    maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+    const label = getPredicateLabel(extracted);
+    const categoryPredicateMap = predicateNodeInfosByCategory[category];
+    let nodeInfo = categoryPredicateMap.get(label);
+    if (!nodeInfo) {
+      nodeInfo = createGraphNodeInfo(nodeId, x, y, NODE_WIDTH, NODE_HEIGHT, 'ellipse');
+      registerElement(createPredicateNode(label, x, y, nodeId, fillColor));
+      categoryPredicateMap.set(label, nodeInfo);
+      maxElementBottom = Math.max(maxElementBottom, y + NODE_HEIGHT);
+    }
   };
 
-  if (initPredicates.length > 0) {
-    initPredicates.forEach((predicate, index) => {
+  if (initComparators.length > 0) {
+    nextSectionY = placeComparatorSection(initComparators, 'init', nextSectionY);
+  }
+
+  const preconditionSectionTopY = nextSectionY;
+  if (uniqueInitPredicates.length > 0) {
+    uniqueInitPredicates.forEach((predicate, index) => {
       placePredicateNode(predicate, index, 'init', nextSectionY);
     });
     lastSectionStartY = nextSectionY;
-    const initRows = Math.ceil(initPredicates.length / problemColumns);
+    const initRows = Math.ceil(uniqueInitPredicates.length / problemColumns);
     lastSectionRows = Math.max(lastSectionRows, initRows);
     nextSectionY += initRows * NODE_SPACING_Y + SECTION_GAP;
   }
 
-  nextSectionY = placeComparatorSection(initComparators, 'init', nextSectionY);
-
   const objectStartY = nextSectionY;
+  const objectSectionTopY = nextSectionY;
+  let objectRows = 0;
   if (objects.length > 0) {
     objects.forEach((object, index) => {
       const width = PARAMETER_NODE_WIDTH;
       const height = PARAMETER_NODE_HEIGHT;
-      const x = startX + (index % problemColumns) * NODE_SPACING_X;
+      const x = contentStartX + (index % problemColumns) * NODE_SPACING_X;
       const y = objectStartY + Math.floor(index / problemColumns) * NODE_SPACING_Y;
       const nodeId = sanitizeId(`object-${problem.name}-${object.name}`);
       const label = object.type ? `${object.name}: ${object.type}` : object.name;
@@ -891,40 +1361,81 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
       maxElementBottom = Math.max(maxElementBottom, y + height);
     });
     lastSectionStartY = objectStartY;
-    const objectRows = Math.ceil(objects.length / problemColumns);
+    objectRows = Math.ceil(objects.length / problemColumns);
     lastSectionRows = Math.max(lastSectionRows, objectRows);
     nextSectionY += objectRows * NODE_SPACING_Y + SECTION_GAP;
   }
+  const objectSectionBottomY =
+    objectRows > 0 ? objectSectionTopY + objectRows * NODE_SPACING_Y : objectSectionTopY;
+  const goalDescriptionId = sanitizeId(`${groupId}-goal-description`);
 
   const goalStartY = nextSectionY;
-  if (goalPredicates.length > 0) {
-    goalPredicates.forEach((predicate, index) => {
+  if (uniqueGoalPredicates.length > 0) {
+    uniqueGoalPredicates.forEach((predicate, index) => {
       placePredicateNode(predicate, index, 'goal', goalStartY);
     });
     lastSectionStartY = goalStartY;
-    const goalRows = Math.ceil(goalPredicates.length / problemColumns);
+    const goalRows = Math.ceil(uniqueGoalPredicates.length / problemColumns);
     lastSectionRows = Math.max(lastSectionRows, goalRows);
     nextSectionY += goalRows * NODE_SPACING_Y + SECTION_GAP;
   }
 
   nextSectionY = placeComparatorSection(goalComparators, 'goal', nextSectionY);
 
-  const goalDescriptionId = sanitizeId(`${groupId}-goal-description`);
-  const goalDescriptionBaseY = nextSectionY;
+  const sidebarX = startX;
+  const initDescriptionY = 150 ;
+  const minGoalDescriptionY = objectSectionBottomY + SECTION_GAP;
+  let goalDescriptionY = objectSectionBottomY - descriptionHeight;
+  if (goalDescriptionY < minGoalDescriptionY) {
+    goalDescriptionY = minGoalDescriptionY;
+  }
+  registerElement(
+    createDescriptionNode(
+      initDescriptionText,
+      sidebarX,
+      initDescriptionY,
+      initDescriptionId,
+      descriptionWidth,
+      descriptionHeight ,
+      'problem-init'
+    )
+  );
+  maxElementBottom = Math.max(maxElementBottom, initDescriptionY + descriptionHeight);
   registerElement(
     createDescriptionNode(
       goalDescriptionText,
-      startX,
-      goalDescriptionBaseY,
+      sidebarX,
+      goalDescriptionY,
       goalDescriptionId,
-      problemWidth,
-      descriptionHeight,
+      descriptionWidth,
+      descriptionHeight / 2,
       'problem-goal'
     )
   );
-  maxElementBottom = Math.max(maxElementBottom, goalDescriptionBaseY + descriptionHeight);
-  lastSectionStartY = goalDescriptionBaseY;
-  lastSectionRows = Math.max(lastSectionRows, Math.ceil(descriptionHeight / NODE_SPACING_Y));
+  maxElementBottom = Math.max(maxElementBottom, goalDescriptionY + descriptionHeight);
+
+  const assignPredicateNodesForEdges = (
+    predicates: ExtractedPredicate[],
+    category: 'init' | 'goal'
+  ) => {
+    const categoryPredicateMap = predicateNodeInfosByCategory[category];
+    predicates.forEach((predicate) => {
+      const label = getPredicateLabel(predicate);
+      const nodeInfo = categoryPredicateMap.get(label);
+      if (!nodeInfo) {
+        return;
+      }
+      predicateNodes.push({
+        ...nodeInfo,
+        expr: predicate.expr,
+        label,
+        category,
+      });
+    });
+  };
+
+  assignPredicateNodesForEdges(initPredicates, 'init');
+  assignPredicateNodesForEdges(goalPredicates, 'goal');
 
   let edgeIndex = 0;
   predicateNodes.forEach((predicateNode) => {
@@ -989,7 +1500,7 @@ export function createProblemGraph(problem: PddlProblem, startX: number, startY:
   } as any;
   elements.unshift(groupElement);
 
-  const width = problemWidth;
+  const width = descriptionWidth + sidebarGap + problemWidth;
   const lastSectionBottomY = Math.max(
     maxElementBottom,
     lastSectionStartY + lastSectionRows * NODE_SPACING_Y
